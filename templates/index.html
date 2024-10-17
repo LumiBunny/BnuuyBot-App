@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <title>Bunni Bot Chat 🐰💕</title>
+    <style>
+        h2 {
+            color: #ffffff;
+            margin: -5px -5px -5px 20px;
+        }
+        body {
+            font-family: "Montserrat", Tahoma, sans-serif;
+            font-weight: 500;
+            color: #272727;
+            background-color: #05395a;
+            padding: 5px;
+        }
+        #messages {
+            border: 1px solid #ccc;
+            margin: 10px; /* Adjust margin for aesthetics */
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #fff;
+            height: 600px;
+            overflow-y: auto;
+            display: flex; /* Use flexbox */
+            flex-direction: column; /* Stack messages vertically */
+        }
+        #functions {
+            text-align: center;
+            border: 1px solid #ccc;
+            margin: 10px; /* Adjust margin for aesthetics */
+            padding: 20px;
+            border-radius: 5px;
+            background-color: #dceef4;
+            height: 600px;
+            overflow-y: auto;
+            display: flex; /* Use flexbox */
+            flex-direction: column; /* Stack messages vertically */
+        }
+        .message {
+            margin: 20px; /* Adjust margin for aesthetics */
+            padding: 15px;
+            border-radius: 20px;
+            max-width: 70%; /* Limit message width */
+        }
+        .user {
+            background-color: #8fe0f0;
+            align-self: flex-end; /* Align user messages to the left */
+        }
+        .assistant {
+            background-color: #e3b1ff;
+            align-self: flex-start; /* Align assistant messages to the right */
+        }
+        /* The switch - the box around the slider */
+        .switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 34px;
+        }
+        /* The slider */
+        .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        -webkit-transition: .4s;
+        transition: .4s;
+        }
+
+        .slider:before {
+        position: absolute;
+        content: "";
+        height: 26px;
+        width: 26px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        -webkit-transition: .4s;
+        transition: .4s;
+        }
+
+        input:checked + .slider {
+        background-color: #2196F3;
+        }
+
+        input:focus + .slider {
+        box-shadow: 0 0 1px #2196F3;
+        }
+
+        input:checked + .slider:before {
+        -webkit-transform: translateX(26px);
+        -ms-transform: translateX(26px);
+        transform: translateX(26px);
+        }
+
+        /* Rounded sliders */
+        .slider.round {
+        border-radius: 34px;
+        }
+
+        .slider.round:before {
+        border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <h2>Bunni Bot Chat 🐰💕</h2>
+    <table width="100%">
+        <tr>
+            <td width="70%" height="100%">
+                <div id="messages"></div>
+            </td>
+            <td width="30%">
+                <div id="functions">
+                    <h3>Self Prompt Timer</h3>
+                        <b>OFF</b>
+                            <label class="switch">
+                                <input type="checkbox" value="True" name="timer" checked="true">
+                                <span class="slider round"></span><br>
+                            </label>
+                        <b>ON</b>
+                </div>
+            </td>
+        </tr>
+    </table>
+    
+
+    <script>
+      async function fetchMessages() {
+          const response = await fetch('/messages');
+          const messages = await response.json();
+          const messagesDiv = document.getElementById('messages');
+          messagesDiv.innerHTML = ''; // Clear previous messages
+  
+          messages.forEach(msg => {
+              const messageDiv = document.createElement('div');
+              messageDiv.className = 'message ' + (msg.role === 'Lumi' ? 'user' : 'assistant');
+              messageDiv.textContent = `${msg.role}: ${msg.content}`;
+              messagesDiv.appendChild(messageDiv);
+          });
+
+          // Scroll to the bottom of the messages div
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+  
+      // Fetch messages every 2 seconds
+      setInterval(fetchMessages, 2000);
+  </script>
+
+</body>
+</html>
