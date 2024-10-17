@@ -6,11 +6,12 @@ import requests
 from messages import TextFormatting
 
 class Completions:
-    def __init__(self, chat_history, models):
+    def __init__(self, chat_history, models, chat_log):
         self.models = models
         self.client = self.models.lm_studio_client()
         self.model = self.models.get_llm()
         self.chat_history = chat_history
+        self.chat_log = chat_log
         self.text_formatting = TextFormatting(chat_history, models)
 
     def bnuuybot_completion(self):
@@ -19,6 +20,7 @@ class Completions:
         while not completed_generation:
             try:
                 messages = self.chat_history.get_recent_messages(20)  # Adjust the number as needed
+                user_input = self.chat_history.content()
 
                 completion = self.client.chat.completions.create(
                     model=self.model,
@@ -55,6 +57,7 @@ class Completions:
                 self.chat_history.delete_most_recent()
                 # Add the assistant's response to the chat history
                 self.chat_history.add("assistant", "Assistant", new_message["content"])
+                self.chat_log.update_chat_log(user_input, new_message["content"])
 
                 return sentence_groups
             except Exception as e:
