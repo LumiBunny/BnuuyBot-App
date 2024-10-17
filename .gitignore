@@ -156,3 +156,4 @@ cython_debug/
 
 # Files
 .testing_stuff.py
+.logs
