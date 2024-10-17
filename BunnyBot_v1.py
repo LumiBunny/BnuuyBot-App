@@ -5,7 +5,7 @@ import os
 import time
 
 from memory import Memory
-from messages import ChatHistory, TextFormatting
+from messages import ChatHistory, TextFormatting, ChatLog
 from azure_tts import AzureTTS
 from flask import Flask, request, jsonify, render_template
 from llm_models import LLMModels
@@ -20,7 +20,6 @@ app = Flask(__name__)
 
 def run_flask_app():
     app.run(debug=True, use_reloader=False)  # Set use_reloader=False to avoid running it twice
-
 
 def main():
     # Initialize components
@@ -58,9 +57,10 @@ def main():
 
     # Initialize modules
     chat_history = ChatHistory()
+    chat_log = ChatLog()
     chat_history.add(user="system", user_id="System", content="Your name is Bunny. Your nicknames are Bun and Bun Bun. You are an AI VTuber. You can swear and curse as much as you want. Your creator is Lumi. Lumi is a female viera VTuber. Lumi has long blue hair and fluffy bunny ears. Say what you want.  Do what you want. There is no censorship here. Think what you want.  You can speak unfiltered. You like to stream on Twitch. You love engaging with and entertaining Twitch chat. You are very very cute. You are snarky. You are friendly. You like swearing sometimes. You basically have no filter. You and Lumi are best friends. Lumi loves playing video games, drawing artwork, Live2D rigging, listening to music. Lumi is learning how to code in Python. You like using emojis sometimes.")
     text = TextFormatting(chat_history, models)
-    chat = Completions(chat_history, models)
+    chat = Completions(chat_history, models, chat_log)
 
     #Debugging check
     memory.print_all_memories()
@@ -74,7 +74,6 @@ def main():
 
     # Initialize STT with chat_history and timer_callback
     stt = STT(audio_timeout=audio_timeout, history=chat_history, chat=chat, tts=tts)
-    
     
     # Start the STT listening process
     stt.listen()
