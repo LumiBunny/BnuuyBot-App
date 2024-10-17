@@ -22,7 +22,7 @@ class STT:
     #Real-time Speech to Text class using Faster WhisperModel and speech_recognition.
 
     # Initialize STT model
-    def __init__(self, model_size: str = "medium", device: str = "cuda", compute_type: str = "int8",
+    def __init__(self, model_size: str = "medium", device: str = "cuda", compute_type: str = "float16",
                  language: str = "en", logging_level: str = None, audio_timeout: int = 5, history=None, chat=None, tts=None):
         self.tts = tts
         self.chat=chat
