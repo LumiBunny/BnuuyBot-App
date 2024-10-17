@@ -11,7 +11,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class LLMModels:
         def __init__(self):
-                self.embedder = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+                self.embedder = SentenceTransformer('all-MiniLM-L6-v2', model_kwargs={"torch_dtype": "float16"}, device=device)
                 self.classifier = pipeline("zero-shot-classification", model="FacebookAI/roberta-large-mnli", device=device)
                 # Set up LM Studio for chatting LLM
                 self.client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
