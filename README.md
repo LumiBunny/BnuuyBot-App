@@ -8,7 +8,7 @@ I actually have no idea what I am doing most of the time, but that is part of th
 
 ### Version 0.1.0 Notes 📝
 + Speech to text
-+ Audio transcription using [Whisper/FasterWhisper](https://medium.com/@sumudithalanz/the-art-of-crafting-an-effective-readme-for-your-github-project-cf425a8b1580)
++ Audio transcription using [Whisper/FasterWhisper](https://github.com/SYSTRAN/faster-whisper)
 + Locally hosted LLM using LM Studio (can also be replaced with OpenAI API)
 + Text to speech using [Azure AI TTS](https://azure.microsoft.com/en-ca/products/ai-services/ai-speech)
 + Conversational memory storage using [Qdrant](https://qdrant.tech) vector database (base set up, in development)
