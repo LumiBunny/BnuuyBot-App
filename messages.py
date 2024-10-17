@@ -198,7 +198,7 @@ class TextFormatting:
 class ChatLog:
     def __init__(self):
           self.chat_log = []
-          self.filename = f'chat_log_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+          self.filename = f'.logs/chat_log_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
 
     def update_chat_log(self, prompt, reply):
         self.filename  
