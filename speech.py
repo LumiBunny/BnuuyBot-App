@@ -11,7 +11,6 @@ import io
 from audio_timer import AudioTimer
 import speech_recognition as sr
 from faster_whisper import WhisperModel
-from azure_tts import AzureTTS
 import pyaudio
 
 """
