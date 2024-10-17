@@ -2,8 +2,10 @@
 Classes and functions for managing messages, chat history, self prompting and text transformations.
 """
 
-import torch
+import datetime
+import os
 import re
+import json
 import torch
 import torch.nn.functional as F
 
@@ -192,3 +194,29 @@ class TextFormatting:
                 token_embeddings = model_output[0] #First element of model_output contains all token embeddings
                 input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
                 return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+        
+class ChatLog:
+    def __init__(self):
+          self.chat_log = []
+          self.filename = f'chat_log_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+
+    def update_chat_log(self, prompt, reply):
+        self.filename  
+    
+        entry = [
+             {"role": "user", "prompt": prompt},
+             {"role": "assistant", "response": reply}
+        ]
+        
+        # Check if the file exists and load existing data
+        if os.path.exists(self.filename):
+            with open(self.filename, 'r') as f:
+                data = json.load(f)
+        else:
+            data = []
+
+        data.append(entry)
+
+        with open(self.filename, 'w') as f:
+            json.dump(data, f, indent=4)
+            print(f"Appended to {self.filename}")  # For debugging
