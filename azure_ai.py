@@ -4,10 +4,9 @@ Description: A class that handles the Azure TTS API call function and parameters
 
 import azure.cognitiveservices.speech as speechsdk
 import os
+import threading
 
-
-
-class AzureTTS():
+class Azure_AI():
         def __init__(self):
                 # Setup of Azure TTS voice settings, can preview these online.
                 self.voice_name = "en-US-AvaMultilingualNeural"
@@ -21,6 +20,14 @@ class AzureTTS():
                 # The neural multilingual voice can speak different languages based on the input text.
                 self.speech_config.speech_synthesis_voice_name=self.voice_name
                 self.speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=self.speech_config, audio_config=self.audio_config)
+
+                # Setup of Azure STT settings
+                self.speech_config.speech_recognition_language="en-US"
+                self.audio_input_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
+                self.speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config, audio_config=self.audio_input_config)
+
+                self.is_listening = False
+                self.listen_thread = None
         
         def azure_tts(self, text):
                 # Create the SSML with pitch adjustment
@@ -45,3 +52,27 @@ class AzureTTS():
                                 if cancellation_details.error_details:
                                         print("Error details: {}".format(cancellation_details.error_details))
                                         print("Did you set the speech resource key and region values?")
+
+        def start_continuous_listening(self, callback):
+                def recognize_cb(evt):
+                    if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                        callback(evt.result.text)
+
+                self.speech_recognizer.recognized.connect(recognize_cb)
+                self.speech_recognizer.session_started.connect(lambda evt: print('Azure STT: Session started'))
+                self.speech_recognizer.session_stopped.connect(lambda evt: print('Azure STT: Session stopped'))
+
+                self.is_listening = True
+                self.listen_thread = threading.Thread(target=self._continuous_listen)
+                self.listen_thread.start()
+
+        def _continuous_listen(self):
+                self.speech_recognizer.start_continuous_recognition()
+                while self.is_listening:
+                    threading.Event().wait(1)  # Wait for 1 second
+                self.speech_recognizer.stop_continuous_recognition()
+
+        def stop_continuous_listening(self):
+                self.is_listening = False
+                if self.listen_thread:
+                    self.listen_thread.join()
