@@ -18,20 +18,15 @@ A class for handling STT and audio transcriptions work queues.
 """
 
 class STT:
-
-    #Real-time Speech to Text class using Faster WhisperModel and speech_recognition.
-
-    # Initialize STT model
     def __init__(self, model_size: str = "medium", device: str = "cuda", compute_type: str = "float16",
                  language: str = "en", logging_level: str = None, audio_timeout: int = 5, history=None, chat=None, tts=None):
         self.tts = tts
-        self.chat=chat
+        self.chat = chat
         self.history = history
         self.audio_timeout = audio_timeout
         self.lock = threading.Lock()
-        self.audio_timer = AudioTimer(history=self.history,chat=self.chat, tts=self.tts)  # Initialize the audio timer
+        self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self.tts)
 
-        #Initialize the STT object.
         self.recorder = sr.Recognizer()
         self.data_queue = queue.Queue()
         self.transcription = ['']
@@ -50,61 +45,55 @@ class STT:
             self.configure_logging(level=logging_level)
 
         self.thread = threading.Thread(target=self.transcribe)
-        self.thread.setDaemon(True)
+        self.thread.daemon = True
         self.thread.start()
 
         print("Ready!\n")
-
         print("Starting timer!")
-        self.audio_timer.start_timer()  # Start the timer immediately
+        self.audio_timer.start_timer()
 
     def transcribe(self):
-        """Transcribe the audio data from the queue."""
         while self.is_listening:
-            audio_data = self.data_queue.get()
-
-            if audio_data == 'PLATYPUS':
-                break
-
-            segments, info = self.model.transcribe(audio_data, beam_size=5, language=self.language, vad_filter=True)
-            for segment in segments:
-                text = segment.text.strip()
-                logging.info("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, text))
-                with self.lock:
-                    self.transcription.append(text)
-                    self.last_transcription = text
-
-            self.data_queue.task_done()
-            time.sleep(0.25)
+            try:
+                audio_data = self.data_queue.get(timeout=1)
+                if audio_data == 'PLATYPUS':
+                    break
+                segments, info = self.model.transcribe(audio_data, beam_size=5, language=self.language, vad_filter=True)
+                for segment in segments:
+                    text = segment.text.strip()
+                    logging.info("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, text))
+                    with self.lock:
+                        self.transcription.append(text)
+                        self.last_transcription = text
+                self.data_queue.task_done()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                logging.error(f"Error in transcribe: {e}")
 
     def recorder_callback(self, _, audio_data):
-        """Callback function for the recorder."""
-        self.audio_timer.cancel_timer()  # Cancel the timer if audio is detected to avoid prompting overlap and broken convos.
+        self.audio_timer.cancel_timer()
         print("Audio detected! Cancelling timer!")
         audio = io.BytesIO(audio_data.get_wav_data())
         self.data_queue.put(audio)
 
     def listen(self):
-        """Start listening to the microphone."""
         with sr.Microphone(device_index=self.default_mic) as source:
             self.recorder.adjust_for_ambient_noise(source)
-
-        self.recorder.listen_in_background(source=source, callback=self.recorder_callback)
+        self.recorder.listen_in_background(sr.Microphone(device_index=self.default_mic), self.recorder_callback)
 
     def stop(self):
-        """Stop the transcription process."""
         logging.info("Stopping...")
         logging.info(f"Transcription:\n {self.transcription}")
         self.is_listening = False
         self.data_queue.put("PLATYPUS")
 
     def get_last_transcription(self):
-        """Get the last transcription and clear it."""
         with self.lock:
             text = self.last_transcription
             self.last_transcription = ""
         return text
-    
+
     @staticmethod
     def setup_mic():
         """Set up the microphone."""
@@ -158,6 +147,10 @@ class TTS:
     def start_audio_timer(self):
         self.audio_timer.start_timer()  # Start the audio timer
 
+    def cancel_audio_timer(self):
+        self.audio_timer.cancel_timer()
+        print("Audio timer cancelled!")
+
     @staticmethod
     def get_random_interval():
         return random.randint(3, 12)
@@ -183,9 +176,8 @@ class TTS:
                 
                 # Start the audio timer only if the queue is empty
                 if self.tts_queue.empty():
-                    print("Ready!!")
-                    self.start_audio_timer()                    
-                    print("Audio timer started.")
+                        print("Ready!!")
+                        self.start_audio_timer()
 
             except queue.Empty:
                 continue  # If the queue is empty, continue checking for new items
@@ -195,5 +187,6 @@ class TTS:
 
     # Add tts_reply to work queue
     def add_to_tts_queue(self, tts_reply):
+        self.cancel_audio_timer()
         for group in tts_reply:
             self.tts_queue.put(tts_reply)  # Add the TTS reply to the queue
