@@ -6,7 +6,7 @@ import time
 
 from memory import Memory
 from messages import ChatHistory, TextFormatting, ChatLog
-from azure_tts import AzureTTS
+from azure_ai import Azure_AI
 from flask import Flask, request, jsonify, render_template
 from llm_models import LLMModels
 from speech import STT, TTS
@@ -24,7 +24,7 @@ def run_flask_app():
 def main():
     # Initialize components
     models = LLMModels()
-    azure_tts = AzureTTS()
+    azure_ai = Azure_AI()
     memory = Memory("memories2", models)
     user_id = "Lumi"
     audio_timeout = 12
@@ -70,13 +70,10 @@ def main():
     flask_thread.start()
 
     # Initialize TTS with audio_timer
-    tts = TTS(tts_queue, azure_tts, chat_history, chat)
+    tts = TTS(tts_queue, azure_ai, chat_history, chat)
 
     # Initialize STT with chat_history and timer_callback
     stt = STT(audio_timeout=audio_timeout, history=chat_history, chat=chat, tts=tts)
-    
-    # Start the STT listening process
-    stt.listen()
 
     # Start the TTS worker thread
     tts_thread = threading.Thread(target=tts.tts_worker, daemon=True)

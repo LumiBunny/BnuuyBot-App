@@ -3,134 +3,63 @@ Classes for STT and TTS.
 """
 
 import queue
-import random
 import threading
-import logging
-import time
-import io
 from audio_timer import AudioTimer
-import speech_recognition as sr
-from faster_whisper import WhisperModel
-import pyaudio
+from azure_ai import Azure_AI
 
 """
 A class for handling STT and audio transcriptions work queues.
 """
 
 class STT:
-    def __init__(self, model_size: str = "medium", device: str = "cuda", compute_type: str = "float16",
-                 language: str = "en", logging_level: str = None, audio_timeout: int = 5, history=None, chat=None, tts=None):
+    def __init__(self, audio_timeout: int = 15, history=None, chat=None, tts=None):
         self.tts = tts
         self.chat = chat
         self.history = history
-        self.audio_timeout = audio_timeout
         self.lock = threading.Lock()
-        self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self.tts)
 
-        self.recorder = sr.Recognizer()
-        self.data_queue = queue.Queue()
         self.transcription = ['']
         self.last_transcription = ""
         self.is_listening = True
 
-        self.model_size = model_size
-        self.device = device
-        self.compute_type = compute_type
-        self.language = language
-        self.default_mic = self.setup_mic()
+        # Initialize Azure TTS
+        self.azure_ai = Azure_AI()
 
-        self.model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
-
-        if logging_level:
-            self.configure_logging(level=logging_level)
-
-        self.thread = threading.Thread(target=self.transcribe)
-        self.thread.daemon = True
-        self.thread.start()
+        # Initialize AudioTimer
+        self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self.tts, timeout=audio_timeout)
 
         print("Ready!\n")
-        print("Starting timer!")
+        print("Starting continuous listening...")
+        self.azure_ai.start_continuous_listening(self.handle_transcription)
+
+        # Start the initial timer
         self.audio_timer.start_timer()
 
-    def transcribe(self):
-        while self.is_listening:
-            try:
-                audio_data = self.data_queue.get(timeout=1)
-                if audio_data == 'PLATYPUS':
-                    break
-                segments, info = self.model.transcribe(audio_data, beam_size=5, language=self.language, vad_filter=True)
-                for segment in segments:
-                    text = segment.text.strip()
-                    logging.info("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, text))
-                    with self.lock:
-                        self.transcription.append(text)
-                        self.last_transcription = text
-                self.data_queue.task_done()
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logging.error(f"Error in transcribe: {e}")
-
-    def recorder_callback(self, _, audio_data):
-        self.audio_timer.cancel_timer()
-        print("Audio detected! Cancelling timer!")
-        audio = io.BytesIO(audio_data.get_wav_data())
-        self.data_queue.put(audio)
-
-    def listen(self):
-        with sr.Microphone(device_index=self.default_mic) as source:
-            self.recorder.adjust_for_ambient_noise(source)
-        self.recorder.listen_in_background(sr.Microphone(device_index=self.default_mic), self.recorder_callback)
+    def handle_transcription(self, text):
+        if text:
+            self.audio_timer.cancel_timer()
+            print("Audio detected! Cancelling timer!")
+            with self.lock:
+                self.transcription.append(text)
+                self.last_transcription = text
+            print(f"Transcribed: {text}")
+        else:
+            # Only start the timer if the TTS queue is empty
+            if self.tts and self.tts.tts_queue.empty():
+                self.audio_timer.start_timer()
 
     def stop(self):
-        logging.info("Stopping...")
-        logging.info(f"Transcription:\n {self.transcription}")
+        print("Stopping...")
+        print(f"Transcription:\n {self.transcription}")
         self.is_listening = False
-        self.data_queue.put("PLATYPUS")
+        self.azure_ai.stop_continuous_listening()
+        self.audio_timer.cancel_timer()
 
     def get_last_transcription(self):
         with self.lock:
             text = self.last_transcription
             self.last_transcription = ""
         return text
-
-    @staticmethod
-    def setup_mic():
-        """Set up the microphone."""
-        p = pyaudio.PyAudio()
-        default_device_index = None
-        try:
-            default_input = p.get_default_input_device_info()
-            default_device_index = default_input["index"]
-        except (IOError, OSError):
-            logging.error("Default input device not found. Printing all input devices:")
-            for i in range(p.get_device_count()):
-                info = p.get_device_info_by_index(i)
-                if info['maxInputChannels'] > 0:
-                    logging.info(f"Device index: {i}, Device name: {info['name']}")
-                    if default_device_index is None:
-                        default_device_index = i
-
-        if default_device_index is None:
-            raise Exception("No input devices found.")
-
-        return default_device_index
-
-    @staticmethod
-    def configure_logging(level: str = "INFO"):
-        """
-        Configure the logging level for the whole application.
-        :param level: The desired logging level. Should be one of the following:
-        'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'.
-        """
-        levels = {
-            'DEBUG': logging.DEBUG,
-            'INFO': logging.INFO,
-            'WARNING': logging.WARNING,
-            'ERROR': logging.ERROR,
-            'CRITICAL': logging.CRITICAL
-        }
-        logging.basicConfig(level=levels.get(level.upper(), logging.INFO))
 
 """
 A class for handling TTS functions and work queue.
@@ -139,25 +68,20 @@ A class for handling TTS functions and work queue.
 class TTS:
     def __init__(self, tts_queue, azure_tts, history, chat):
         self.tts_queue = tts_queue
-        self.azure_tts = azure_tts
+        self.azure_ai = azure_tts
         self.history = history
         self.chat = chat
         self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self)
         
     def start_audio_timer(self):
-        self.audio_timer.start_timer()  # Start the audio timer
+        self.audio_timer.start_timer()
 
     def cancel_audio_timer(self):
         self.audio_timer.cancel_timer()
         print("Audio timer cancelled!")
 
-    @staticmethod
-    def get_random_interval():
-        return random.randint(3, 12)
-
     def tts_worker(self):
-        """Worker function to process TTS replies from the queue."""
-        processed_groups = []  # List to store processed groups
+        processed_groups = []
 
         while True:
             try:
@@ -166,27 +90,24 @@ class TTS:
                     break
                 
                 for group in tts_reply:
-                    if group in processed_groups:
-                        continue
-                    
-                    self.azure_tts.azure_tts(group)
-                    processed_groups.append(group)  
+                    if group not in processed_groups:
+                        self.azure_ai.azure_tts(group)
+                        processed_groups.append(group)
                 
-                self.tts_queue.task_done()  # Mark the processed item as done
+                self.tts_queue.task_done()
                 
                 # Start the audio timer only if the queue is empty
                 if self.tts_queue.empty():
-                        print("Ready!!")
-                        self.start_audio_timer()
+                    print("Ready!!")
+                    self.start_audio_timer()
 
             except queue.Empty:
-                continue  # If the queue is empty, continue checking for new items
+                continue
 
     def stop_tts_worker(self):
         self.tts_queue.put(None)
 
-    # Add tts_reply to work queue
     def add_to_tts_queue(self, tts_reply):
         self.cancel_audio_timer()
         for group in tts_reply:
-            self.tts_queue.put(tts_reply)  # Add the TTS reply to the queue
+            self.tts_queue.put(tts_reply)
