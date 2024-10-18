@@ -42,6 +42,7 @@ class ChatHistory:
 
 class SelfPrompt:
     def __init__(self, history):
+        self.transcription_processing = True
         if isinstance(history, list):
             self.history = ChatHistory()
             for item in history:
@@ -118,83 +119,73 @@ class SelfPrompt:
         self.history.add("system", "System", "Continue your thoughts on the previous message.  Speak as though you prompted this yourself and this was not a message from Lumi.")
 
 class TextFormatting:
-# A class for managing the text transformations needed for search, queries, summarization, and more.
+    def __init__(self, chat_history, models):
+        self.chat_history = chat_history
+        self.models = models
+        self.summarizer = models.get_summarizer()
 
-        def __init__(self, chat_history, models):
-                self.model = models.get_embedder()
-                self.history = chat_history
+    # Summarize the context of the message or conversation history
+    def get_context(self, num):
+        # Step 1: Get recent messages
+        context = self.chat_history.get_recent_messages(num)
 
-        # Summarize the context of the message or conversation history
-        def get_context(self, num):
-                if self.history.get_length() < num:
-                        num = self.history.get_length()
+        # Step 2: Check if context is a single string, if not, convert/combine it
+        if not isinstance(context, str):
+            if isinstance(context, list):
+                context = " ".join([f"{getattr(msg, 'role', 'Unknown')}: {getattr(msg, 'content', str(msg))}" for msg in context])
+            else:
+                context = str(context)
 
-                relevant_history = self.history.history[-num]
-                full_text = "Previous messages to use as context: "
-                
-                for msg in relevant_history:
-                        user_id = msg.get('user_id', 'Unknown')
-                        content = msg.get('content', 'No content')
-                        
-                        # Skip messages if the user_id is 'system'
-                        if user_id.lower() != 'system':
-                                full_text += f"user: {user_id}, message: {content}. "
-                
-                full_text = full_text.rstrip()
-                summary = self.summarize_text(full_text)
-                summary = self.bnuuybot_reply_filter(summary)
+        # Step 3: Summarization pipeline
+        max_length = min(len(context.split()) // 2, 130)  # Aim for half the original length, max 130 tokens
+        min_length = max(30, max_length // 2)  # At least 30 tokens, or half of max_length
 
-                # I would like to append context replies to json chat history to see what exactly the prompts and results are.
-                ##append_to_json_file("Assistant", chat_history, summary)
-                
-                return summary if summary else "No relevant context available."
+        summary = self.summarizer(
+            context,
+            max_length=max_length,
+            min_length=min_length,
+            do_sample=False
+        )
 
-        def summarize_text(self, text, num_sentences=3):
-                sentences = [sent.strip() for sent in text.split('.') if sent.strip()]
-                if not sentences:
-                        return ""
-                embeddings = self.model.encode(sentences)
-                summary_sentences = self.get_representative_sentences(sentences, embeddings, num_sentences)
-                return ' '.join(summary_sentences)
+        # Step 4: Return result as a STRING
+        return summary[0]['summary_text']
+    
+    def strip_emoji(self, text):
+        # Remove emojis from text for better tts.
+        RE_EMOJI = re.compile('[\U00010000-\U0010ffff]', flags=re.UNICODE)
+        return RE_EMOJI.sub(r'', text)
 
-        def get_representative_sentences(self, sentences, embeddings, num_sentences=3):
-                mean_embedding = torch.mean(embeddings, dim=0, keepdim=True)
-                similarities = F.cosine_similarity(embeddings, mean_embedding)
-                top_indices = similarities.argsort(descending=True)[:num_sentences]
-                return [sentences[i] for i in sorted(top_indices)]
+    # TTS is wonky, added filter to change words so that the TTS can pronounce things correctly, or remove unnecessary words/text.
+    def bnuuybot_reply_filter(self, text):
+        if isinstance(text, list):
+            # If text is a list of dictionaries, extract the 'content' from each dictionary
+            text = ' '.join(item['content'] for item in text if 'content' in item)
+        elif isinstance(text, dict):
+            # If text is a single dictionary, extract the 'content'
+            text = text.get('content', '')
         
-        def strip_emoji(self, text):
-            # Remove emojis from text for better tts.
-            RE_EMOJI = re.compile('[\U00010000-\U0010ffff]', flags=re.UNICODE)
-            return RE_EMOJI.sub(r'', text)
+        # Now proceed with the replacements
+        text = text.replace("Live2D", "live 2D")
+        text = text.replace("✨", "")
+        text = text.replace("⛰", "")
+        return text
 
-        # TTS is wonky, added filter to change words so that the TTS can pronounce things correctly, or remove unnecessary words/text.
-        def bnuuybot_reply_filter(self, text):
-            text = text.replace("Live2D", "live 2D")
-            text = text.replace("<3", "heart!")
-            text = text.replace("<|im_end|>", "")
-            text = text.replace("|im_end|>", "")
-            text = text.replace("###", "")
-            text = text.replace('bunni', 'bunny')
-            text = text.replace('Bunni', 'Bunny')
-            return text
+    # Split text into sentences to allow for shorter gen times when generating TTS.
+    def split_into_sentences(self, paragraph):
+            # Split by '.', '!', and '?' and filter out empty strings
+            sentences = []
+            for sentence in re.split(r'[.!?]', paragraph):
+                    stripped_sentence = sentence.strip()
+                    if stripped_sentence:  # Check if the string is not empty
+                            sentences.append(stripped_sentence)
+            return sentences
 
-        # Split text into sentences to allow for shorter gen times when generating TTS.
-        def split_into_sentences(self, paragraph):
-                # Split by '.', '!', and '?' and filter out empty strings
-                sentences = []
-                for sentence in re.split(r'[.!?]', paragraph):
-                        stripped_sentence = sentence.strip()
-                        if stripped_sentence:  # Check if the string is not empty
-                                sentences.append(stripped_sentence)
-                return sentences
-
-        # Mean Pooling - Take attention mask into account for correct averaging
-        def mean_pooling(self, model_output, attention_mask):
-                token_embeddings = model_output[0] #First element of model_output contains all token embeddings
-                input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-                return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-        
+    # Mean Pooling - Take attention mask into account for correct averaging
+    def mean_pooling(self, model_output, attention_mask):
+            token_embeddings = model_output[0] #First element of model_output contains all token embeddings
+            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+            return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+    
 class ChatLog:
     def __init__(self):
           self.chat_log = []
