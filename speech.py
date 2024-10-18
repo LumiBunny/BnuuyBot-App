@@ -37,12 +37,12 @@ class STT:
 
     def handle_transcription(self, text):
         if text:
-            self.audio_timer.cancel_timer()
-            print("Audio detected! Cancelling timer!")
             with self.lock:
                 self.transcription.append(text)
                 self.last_transcription = text
             print(f"Transcribed: {text}")
+            self.audio_timer.cancel_timer()
+            print("Audio detected! Cancelling timer!")
         else:
             # Only start the timer if the TTS queue is empty
             if self.tts and self.tts.tts_queue.empty():
@@ -61,25 +61,14 @@ class STT:
             self.last_transcription = ""
         return text
 
-"""
-A class for handling TTS functions and work queue.
-"""
-
 class TTS:
     def __init__(self, tts_queue, azure_tts, history, chat):
         self.tts_queue = tts_queue
-        self.azure_ai = azure_tts
+        self.azure_tts = azure_tts
         self.history = history
         self.chat = chat
         self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self)
         
-    def start_audio_timer(self):
-        self.audio_timer.start_timer()
-
-    def cancel_audio_timer(self):
-        self.audio_timer.cancel_timer()
-        print("Audio timer cancelled!")
-
     def tts_worker(self):
         processed_groups = []
 
@@ -91,7 +80,7 @@ class TTS:
                 
                 for group in tts_reply:
                     if group not in processed_groups:
-                        self.azure_ai.azure_tts(group)
+                        self.azure_tts.azure_tts(group)
                         processed_groups.append(group)
                 
                 self.tts_queue.task_done()
@@ -99,7 +88,7 @@ class TTS:
                 # Start the audio timer only if the queue is empty
                 if self.tts_queue.empty():
                     print("Ready!!")
-                    self.start_audio_timer()
+                    self.audio_timer.start_timer()
 
             except queue.Empty:
                 continue
@@ -108,6 +97,6 @@ class TTS:
         self.tts_queue.put(None)
 
     def add_to_tts_queue(self, tts_reply):
-        self.cancel_audio_timer()
+        self.audio_timer.cancel_timer()
         for group in tts_reply:
             self.tts_queue.put(tts_reply)
