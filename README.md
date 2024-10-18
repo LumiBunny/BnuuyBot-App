@@ -4,7 +4,7 @@ Speech to speech app developed in Python for conversations with an LLM.
 ## Introduction ✨
 BunnyBot was a way for me to get back into learning coding again by learning something new using Python. The app became a way for me to practice all kinds of things like using modules, making classes, OOP, the general piecing together of LLMs and their functions, plus much more.
 
-I actually have no idea what I am doing most of the time, but that is part of the fun.
+I actually have no idea what I am doing most of the time, but that is part of the fun of a learning project.
 
 ### Version 0.1.0 Notes 📝
 + Speech to text
