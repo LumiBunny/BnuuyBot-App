@@ -53,8 +53,11 @@ class AudioTimer:
                 print("No audio detected! Running self prompt...")
                 if self.prompt.self_prompt():
                     tts_reply = await self.chat.bnuuybot_completion()
-                    self.tts.add_to_tts_queue(tts_reply)
+                    if tts_reply:
+                        self.tts.add_to_tts_queue(tts_reply)
+                    else:
+                        self.start_timer()
             else:
-                self.tts.cancel_audio_timer()
+                self.tts.cancel_timer()
         else:
             print("No history available.")
