@@ -12,6 +12,7 @@ from datetime import datetime
 
 class Memory:
     def __init__(self, collection_name="memories", llm_models=None):
+        self.models = llm_models
         self.client = QdrantClient("localhost", port=6333)
         self.collection_name = collection_name
         self.embedder = llm_models.get_embedder()
@@ -42,8 +43,11 @@ class Memory:
                     max_indexing_threads=0
                 )
             )
+            self.add_memory("Lumi", "Lumi really dislikes green peas.")
+            self.add_memory("Lumi", "Lumi's favourite colour is blue.")
+            self.add_memory("Lumi", "Lumi has been learning Python since the summer.")
 
-    def retrieve_relevant_memory(self, query: str) -> Optional[models.ScoredPoint]:
+    async def retrieve_relevant_memory(self, query: str) -> Optional[models.ScoredPoint]:
         embedding = self.embedder.encode(query)
         
         search_results = self.client.search(
@@ -53,8 +57,15 @@ class Memory:
             score_threshold=0.5,
             search_params=models.SearchParams(hnsw_ef=128, exact=False)
         )
-        
-        return search_results[0] if search_results else None
+        if not search_results:  # Check if the list is empty
+            print("No relevant memories found.")
+            return None  # Return None or handle as needed
+
+        memory = search_results[0]
+        memory_content = memory.payload.get('content', 'No content available')
+
+        # Return memory_content if it's not "No content available", otherwise return None
+        return memory_content if memory_content != "No content available" else None
 
     def add_memory(self, user_id, text):
         embedding = self.embedder.encode(text)

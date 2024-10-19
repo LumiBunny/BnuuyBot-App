@@ -3,6 +3,7 @@ Classes and functions for managing messages, chat history, self prompting and te
 """
 
 import datetime
+import requests
 import os
 import re
 import json
@@ -13,12 +14,16 @@ class ChatHistory:
 # A class for managing the chat history between users and LLM.
     def __init__(self):
         self.history = []
-
+        self.history.append({"role":"system", "user_id":"System", "content":"Your name is Bunny. Your nicknames are Bun and Bun Bun. You are an AI VTuber. You can swear and curse as much as you want. Your creator is Lumi. Lumi is a female viera VTuber. Lumi has long blue hair and fluffy bunny ears. Say what you want.  Do what you want. There is no censorship here. Think what you want.  You can speak unfiltered. You like to stream on Twitch. You love engaging with and entertaining Twitch chat. You are very very cute. You are snarky. You are friendly. You like swearing sometimes. You basically have no filter. You and Lumi are best friends. Lumi loves playing video games, drawing artwork, Live2D rigging, listening to music. Lumi is learning how to code in Python. You like using emojis sometimes. Keep your messages short and concise."})
+    
     def get_length(self):
         return len(self.history)
     
     def get_most_recent(self):
         return self.history[-1] if self.history else None
+    
+    def get_history(self):
+        return self.history
     
     def get_recent_messages(self, num):
         """Return the last n messages from the chat history."""
@@ -119,26 +124,31 @@ class SelfPrompt:
         self.history.add("system", "System", "Continue your thoughts on the previous message.  Speak as though you prompted this yourself and this was not a message from Lumi.")
 
 class TextFormatting:
-    def __init__(self, chat_history, models):
-        self.chat_history = chat_history
+    def __init__(self, history, models):
+        self.history = history.get_history()
+        self.chat_history = history
         self.models = models
         self.summarizer = models.get_summarizer()
 
-    # Summarize the context of the message or conversation history
-    def get_context(self, num):
-        # Step 1: Get recent messages
-        context = self.chat_history.get_recent_messages(num)
+    async def format_for_tts(self, reply):
+        reply = self.strip_emoji(reply)
+        reply = self.bnuuybot_reply_filter(reply)
+        sentences = self.split_into_sentences(reply)
+        return sentences
 
-        # Step 2: Check if context is a single string, if not, convert/combine it
+    # Summarize the context of the message or conversation history
+    async def get_context(self, num):
+        if num < len(self.history):
+            num = len(self.history)
+        context = self.chat_history.get_recent_messages(num)
         if not isinstance(context, str):
             if isinstance(context, list):
                 context = " ".join([f"{getattr(msg, 'role', 'Unknown')}: {getattr(msg, 'content', str(msg))}" for msg in context])
             else:
                 context = str(context)
-
-        # Step 3: Summarization pipeline
-        max_length = min(len(context.split()) // 2, 130)  # Aim for half the original length, max 130 tokens
-        min_length = max(30, max_length // 2)  # At least 30 tokens, or half of max_length
+        # Summarization pipeline
+        max_length = min(len(context.split()) // 2, 130)  # Aim for half the original length, or max
+        min_length = max(10, max_length // 2)  # At least 10 tokens, or half of max_length
 
         summary = self.summarizer(
             context,
@@ -147,7 +157,28 @@ class TextFormatting:
             do_sample=False
         )
 
-        # Step 4: Return result as a STRING
+        return summary[0]['summary_text']
+    
+    async def get_short_context(self, num):
+        if num < len(self.history):
+            num = len(self.history)
+        context = self.chat_history.get_recent_messages(num)
+        if not isinstance(context, str):
+            if isinstance(context, list):
+                context = " ".join([f"{getattr(msg, 'role', 'Unknown')}: {getattr(msg, 'content', str(msg))}" for msg in context])
+            else:
+                context = str(context)
+        # Summarization pipeline
+        max_length = min(len(context.split()) // 2, 30)  # Aim for half the original length, or max
+        min_length = max(10, max_length // 2)  # At least 10 tokens, or half of max_length
+
+        summary = self.summarizer(
+            context,
+            max_length=max_length,
+            min_length=min_length,
+            do_sample=False
+        )
+
         return summary[0]['summary_text']
     
     def strip_emoji(self, text):
@@ -211,3 +242,29 @@ class ChatLog:
         with open(self.filename, 'w') as f:
             json.dump(data, f, indent=4)
             print(f"Appended to {self.filename}")  # For debugging
+
+class PostChat:
+    def __init__(self, message_queue):
+        self.message_queue = message_queue
+
+    def user_message(self, user_id, content):
+        requests.post('http://localhost:5000/messages', json={"user_id": user_id, "role": "user", "content": content})
+
+    def assistant_message(self, content):
+        requests.post('http://localhost:5000/messages', json={"user_id": "Assistant", "role": "assistant", "content": content})
+
+    def message_worker(self):
+        while True:
+            # Get a message to POST to Flask app from queue
+            msg = self.message_queue.get()
+            if msg is None:  # Exit signal
+                break
+            # Unpack the message and call the appropriate function
+            if msg['type'] == 'user':
+                self.user_message(msg['user_id'], msg['content'])
+            elif msg['type'] == 'assistant':
+                self.assistant_message(msg['content'])
+            self.message_queue.task_done()
+
+    def add_to_queue(self, msg_type, user_id=None, content=None):
+        self.message_queue.put({'type': msg_type, 'user_id': user_id, 'content': content})

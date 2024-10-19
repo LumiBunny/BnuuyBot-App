@@ -40,13 +40,8 @@ class STT:
             with self.lock:
                 self.transcription.append(text)
                 self.last_transcription = text
-            print(f"Transcribed: {text}")
             self.audio_timer.cancel_timer()
             print("Audio detected! Cancelling timer!")
-        else:
-            # Only start the timer if the TTS queue is empty
-            if self.tts and self.tts.tts_queue.empty():
-                self.audio_timer.start_timer()
 
     def stop(self):
         print("Stopping...")

@@ -3,6 +3,7 @@ Description: A timer for when no input audio is detected after x seconds.
 """
 
 import threading
+import asyncio
 from messages import SelfPrompt, ChatHistory
 
 class AudioTimer:
@@ -43,14 +44,15 @@ class AudioTimer:
         with self.lock:
             self.is_timer_active = False
             self.timer = None
-        self.no_audio_detected()
+        # Run the async function in the event loop
+        asyncio.run(self.no_audio_detected())
 
-    def no_audio_detected(self):
+    async def no_audio_detected(self):
         if self.history is not None:
             if self.tts.tts_queue.empty():
                 print("No audio detected! Running self prompt...")
                 if self.prompt.self_prompt():
-                    tts_reply = self.chat.bnuuybot_completion()
+                    tts_reply = await self.chat.bnuuybot_completion()
                     self.tts.add_to_tts_queue(tts_reply)
             else:
                 self.tts.cancel_audio_timer()
