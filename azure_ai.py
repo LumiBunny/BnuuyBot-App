@@ -7,7 +7,7 @@ import os
 import threading
 
 class Azure_AI():
-        def __init__(self):
+        def __init__(self, audio_timer):
                 # Setup of Azure TTS voice settings, can preview these online.
                 self.voice_name = "en-US-AvaMultilingualNeural"
                 self.pitch_percentage = "+14%"
@@ -23,11 +23,14 @@ class Azure_AI():
 
                 # Setup of Azure STT settings
                 self.speech_config.speech_recognition_language="en-US"
+                self.speech_config.set_profanity(speechsdk.ProfanityOption.Removed)
                 self.audio_input_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
                 self.speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config, audio_config=self.audio_input_config)
 
                 self.is_listening = False
                 self.listen_thread = None
+
+                self.audio_timer = audio_timer
         
         def azure_tts(self, text):
                 # Create the SSML with pitch adjustment
@@ -56,6 +59,8 @@ class Azure_AI():
         def start_continuous_listening(self, callback):
                 def recognize_cb(evt):
                     if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                        self.audio_timer.cancel_timer()
+                        print("Audio detected! Cancelling timer!")
                         callback(evt.result.text)
 
                 self.speech_recognizer.recognized.connect(recognize_cb)
