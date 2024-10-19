@@ -26,7 +26,7 @@ class Completions:
                 completion = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=0.8,
+                    temperature=0.35,
                     stream=True,
                 )
 
