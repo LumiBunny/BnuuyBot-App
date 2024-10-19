@@ -2,8 +2,10 @@
 Classes and functions for managing messages, chat history, self prompting and text transformations.
 """
 
+import emoji
 import datetime
 import requests
+import string
 import os
 import re
 import json
@@ -109,19 +111,19 @@ class SelfPrompt:
     
     # The prompts
     def greet_lumi(self):
-        self.history.add("system", "System", "Lumi hasn't said anything yet, greet her.")
+        self.history.add("user", "System", "Lumi hasn't said anything yet, greet her.")
     
     def start_a_topic(self):
-        self.history.add("system", "System", "Lumi hasn't said anything yet. Talk about something you love to do. Speak as though you prompted this yourself and this was not a message from Lumi.")
+        self.history.add("user", "System", "Lumi hasn't said anything yet. Talk about something you love to do. Speak as though you prompted this yourself and this was not a message from Lumi.")
     
     def change_topic(self):
-        self.history.add("system","System","Change the topic of the conversation. Speak as though you prompted this yourself and this was not a message from Lumi.")
+        self.history.add("user","System","Change the topic of the conversation. Speak as though you prompted this yourself and this was not a message from Lumi.")
 
     def answer_own_question(self):
         self.history.add("user", "System", "Answer the question you asked in your previous message. Do not ask a question in your response. Answer as though you prompted this yourself and this was not a message from Lumi.")
     
     def continue_thoughts(self):
-        self.history.add("system", "System", "Continue your thoughts on the previous message.  Speak as though you prompted this yourself and this was not a message from Lumi.")
+        self.history.add("user", "System", "Continue your thoughts on the previous message.  Speak as though you prompted this yourself and this was not a message from Lumi.")
 
 class TextFormatting:
     def __init__(self, history, models):
@@ -182,9 +184,8 @@ class TextFormatting:
         return summary[0]['summary_text']
     
     def strip_emoji(self, text):
-        # Remove emojis from text for better tts.
-        RE_EMOJI = re.compile('[\U00010000-\U0010ffff]', flags=re.UNICODE)
-        return RE_EMOJI.sub(r'', text)
+        # Remove emojis from text for better TTS.
+        return emoji.replace_emoji(text, replace='')
 
     # TTS is wonky, added filter to change words so that the TTS can pronounce things correctly, or remove unnecessary words/text.
     def bnuuybot_reply_filter(self, text):
@@ -197,8 +198,7 @@ class TextFormatting:
         
         # Now proceed with the replacements
         text = text.replace("Live2D", "live 2D")
-        text = text.replace("✨", "")
-        text = text.replace("⛰", "")
+        text = text.replace("Emojis:", "")
         return text
 
     # Split text into sentences to allow for shorter gen times when generating TTS.
@@ -268,3 +268,29 @@ class PostChat:
 
     def add_to_queue(self, msg_type, user_id=None, content=None):
         self.message_queue.put({'type': msg_type, 'user_id': user_id, 'content': content})
+
+class Prompting:
+    def __init__(self, history):
+        self.history = history
+
+    def get_attention(self, user_id, transcription):
+        self.transcription = transcription.lower()
+        remove_punct = str.maketrans('', '', string.punctuation)
+        self.transcription = self.transcription.translate(remove_punct)  # Use translate here
+        if self.transcription == 'bunny' or self.transcription == 'hey bunny':
+            self.history.add("user", user_id, f"{user_id} is trying to get your attention, acknowledge with something like 'yes?', 'what do you want?', 'what is it?', 'did you need something?', 'I'm here!', 'what's up?', 'you called for me?', 'what now?' or any other way to acknoewledge {user_id} has your attention. Keep it simple.")
+            print(f"{user_id} is trying to get your attention, acknowledge with something like 'yes?', 'what do you want?', 'what is it?', 'did you need something?', 'I'm here!', 'what's up?', 'you called for me?', 'what now?' or any other way to acknoewledge {user_id} has your attention. Keep it simple.")
+            return True
+        else:
+            return False
+        
+    def get_emotion(self, emotion, user_id, transcription):
+        if emotion == "neutral":
+            self.history.add("user", user_id, f"{transcription}. This is a message from {user_id}, respond.")
+            print(f"{transcription}. This is a message from {user_id}, respond.")
+        elif emotion:
+            self.history.add("user", user_id, f"{transcription}. This message from {user_id} has a feeling of {emotion}. Respond to {user_id}'s message.")
+            print(f"{transcription}. This message from {user_id} has a feeling of {emotion}. Respond to {user_id}'s message.")
+        else:
+            self.history.add("user", user_id, f"{transcription}. This is a message from {user_id}, respond.")
+            print(f"{transcription}. This is a message from {user_id}, respond.")
