@@ -22,11 +22,11 @@ class STT:
         self.last_transcription = ""
         self.is_listening = True
 
-        # Initialize Azure TTS
-        self.azure_ai = Azure_AI()
-
         # Initialize AudioTimer
         self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self.tts, timeout=audio_timeout)
+
+        # Initialize Azure TTS
+        self.azure_ai = Azure_AI(self.audio_timer)
 
         print("Ready!\n")
         print("Starting continuous listening...")
@@ -40,8 +40,6 @@ class STT:
             with self.lock:
                 self.transcription.append(text)
                 self.last_transcription = text
-            self.audio_timer.cancel_timer()
-            print("Audio detected! Cancelling timer!")
 
     def stop(self):
         print("Stopping...")
@@ -57,12 +55,12 @@ class STT:
         return text
 
 class TTS:
-    def __init__(self, tts_queue, azure_tts, history, chat):
+    def __init__(self, tts_queue, history, chat):
         self.tts_queue = tts_queue
-        self.azure_tts = azure_tts
         self.history = history
         self.chat = chat
         self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self)
+        self.azure_tts = Azure_AI(self.audio_timer)
         
     def tts_worker(self):
         processed_groups = []
