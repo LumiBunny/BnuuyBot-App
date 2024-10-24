@@ -12,26 +12,18 @@ A class for handling STT and audio transcriptions work queues.
 """
 
 class STT:
-    def __init__(self,
-                 audio_timeout: int = 15,
-                 history=None,
-                 chat=None,
-                 tts=None,
-                 models=None,
-                 message_queue=None):
+    def __init__(self, audio_timeout: int = 15, history=None, chat=None, tts=None):
+        self.tts = tts
+        self.chat = chat
+        self.history = history
         self.lock = threading.Lock()
+
         self.transcription = ['']
         self.last_transcription = ""
         self.is_listening = True
 
         # Initialize AudioTimer
-        self.audio_timer = AudioTimer(history=history,
-                                      chat=chat,
-                                      tts=tts,
-                                      timeout=audio_timeout,
-                                      models=models,
-                                      message_queue=message_queue
-                                      )
+        self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self.tts, timeout=audio_timeout)
 
         # Initialize Azure TTS
         self.azure_ai = Azure_AI(self.audio_timer)
@@ -45,8 +37,6 @@ class STT:
 
     def handle_transcription(self, text):
         if text:
-            self.audio_timer.cancel_timer()
-            print("Audio detected! Cancelling timer...")
             with self.lock:
                 self.transcription.append(text)
                 self.last_transcription = text
@@ -65,15 +55,11 @@ class STT:
         return text
 
 class TTS:
-    def __init__(self,
-                 tts_queue,
-                 history,
-                 chat, models):
+    def __init__(self, tts_queue, history, chat):
         self.tts_queue = tts_queue
-        self.audio_timer = AudioTimer(history=history,
-                                      chat=chat,
-                                      tts=self,
-                                      models=models)
+        self.history = history
+        self.chat = chat
+        self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self)
         self.azure_tts = Azure_AI(self.audio_timer)
         
     def tts_worker(self):
