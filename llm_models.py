@@ -20,7 +20,7 @@ class LLMModels:
                 
                 # Set up LM Studio for chatting LLM
                 self.client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
-                self.model = "Lewdiculous/Eris-Daturamix-7b-v2-GGUF-IQ-Imatrix"
+                self.model = "LumiBunny/Eris-Daturamix-Neural-7b-slerp-IQ4_NL-GGUF"
 
         def get_embedder(self):
                 return self.embedder

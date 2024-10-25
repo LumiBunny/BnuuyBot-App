@@ -59,8 +59,6 @@ class Azure_AI():
         def start_continuous_listening(self, callback):
                 def recognize_cb(evt):
                     if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                        self.audio_timer.cancel_timer()
-                        print("Audio detected! Cancelling timer!")
                         callback(evt.result.text)
 
                 self.speech_recognizer.recognized.connect(recognize_cb)
