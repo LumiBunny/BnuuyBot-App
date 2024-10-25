@@ -155,5 +155,7 @@ dmypy.json
 cython_debug/
 
 # Files
+nodes.md
 .testing_stuff.py
+.testing_stuff_2.py
 .logs
