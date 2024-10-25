@@ -1,5 +1,8 @@
+from nodes import Node
+
 class NodeManager: 
     def __init__(self, registry): 
+        self.node = Node()
         self.registry = registry 
         self.current_node = None 
 

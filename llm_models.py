@@ -15,11 +15,22 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class LLMModels:
         def __init__(self):
                 self.embedder = SentenceTransformer('all-MiniLM-L6-v2', model_kwargs={"torch_dtype": "float16"}, device=device)
-                self.summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-6-6", device=device)
-                self.emotion_pipe = pipeline(task="text-classification", model="SamLowe/roberta-base-go_emotions", top_k=None, device=device)
-                
+                self.summarizer = pipeline("summarization", 
+                                           model="sshleifer/distilbart-cnn-6-6", 
+                                           device=device)
+                self.emotion_pipe = pipeline(task="text-classification", 
+                                             model="SamLowe/roberta-base-go_emotions", 
+                                             top_k=None, 
+                                             device=device
+                                             )
+                self.intent_pipe = pipeline(task="zero-shot-classification", 
+                                       model="facebook/bart-large-mnli",
+                                       top_k=None, 
+                                       device=device
+                                       )
                 # Set up LM Studio for chatting LLM
-                self.client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
+                self.client = OpenAI(base_url="http://localhost:1234/v1", 
+                                     api_key="lm-studio")
                 self.model = "Lewdiculous/Eris-Daturamix-7b-v2-GGUF-IQ-Imatrix"
 
         def get_embedder(self):
@@ -33,6 +44,12 @@ class LLMModels:
                 feeling = emotion[0]
                 if feeling[0]['score'] > 0.68:
                     return feeling[0]['label']
+                
+        def get_intent(self, text):
+                labels = ["question", "statement", "command", "remember that"]
+                intent = self.intent_pipe(text, labels)
+                if intent['scores'][0] > 0.5:
+                    return intent['labels'][0]
         
         def lm_studio_client(self):
                 return self.client
