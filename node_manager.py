@@ -1,5 +1,3 @@
-from nodes import Node
-
 class NodeManager:
     def __init__(self, registry):
         self.registry = registry
