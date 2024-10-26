@@ -47,6 +47,16 @@ class ChatHistory:
     def add(self, user, user_id, content):
         self.history.append({"role": user, "user_id": user_id, "content": content})
 
+    def get_most_recent_non_user(self, excluded_user_id="Lumi"):
+        for message in reversed(self.history):
+            if message.get("user_id") != excluded_user_id:
+                return message
+        return None
+    
+    def get_most_recent_non_user_content(self, excluded_user_id="Lumi"):
+        message = self.get_most_recent_non_user(excluded_user_id)
+        return message.get("content") if message else None
+
 class SelfPrompt:
     def __init__(self, history):
         self.transcription_processing = True
