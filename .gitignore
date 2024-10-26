@@ -158,3 +158,4 @@ cython_debug/
 .testing_stuff.py
 .testing_stuff_2.py
 .logs
+nodes.md
