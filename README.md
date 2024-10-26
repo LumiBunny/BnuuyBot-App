@@ -6,6 +6,15 @@ BunnyBot was a way for me to get back into learning coding again by learning som
 
 I actually have no idea what I am doing most of the time, but that is part of the fun of a learning project.
 
+### Version 0.5.4 Notes 📝 (October 25, 2024)
+Added new modules for conversation nodes!
++ Added Node class for construction and processing of nodes.
++ Added NodeRegistry class for creation/init of all nodes and a list of all their functions.
++ Added NodeManager class for handling current/next nodes.
++ Added another LLM for Yes/No/Other sentiment analysis pipelines.
++ Minor edits on tiny details.
+The new nodes modules will help assist with better prompting/prompt engineering while also paving the way for eventual voice commands. The user prompts and LLM responses help determine the path through the nodes.
+
 ### Version 0.4.3 Notes 📝 (October 19, 2024)
 A lot of new changes and additions to enable smoother running and less latency in inferencing!
 + Added async to functions. Allows for concurrent processes to run and reduces latency/wait times between user prompts and AI replies.
