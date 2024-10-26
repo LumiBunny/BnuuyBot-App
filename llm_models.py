@@ -25,9 +25,11 @@ class LLMModels:
                                              )
                 self.intent_pipe = pipeline(task="zero-shot-classification", 
                                        model="facebook/bart-large-mnli",
-                                       top_k=None, 
                                        device=device
                                        )
+                self.sentiment_pipe = pipeline(task="sentiment-analysis", 
+                                               model="sachin19566/distilbert_Yes_No_Other_Intent",
+                                               device=device)
                 # Set up LM Studio for chatting LLM
                 self.client = OpenAI(base_url="http://localhost:1234/v1", 
                                      api_key="lm-studio")
@@ -50,6 +52,39 @@ class LLMModels:
                 intent = self.intent_pipe(text, labels)
                 if intent['scores'][0] > 0.5:
                     return intent['labels'][0]
+                
+        def get_sentiment(self, text):
+            try:
+                result = self.sentiment_pipe(text)[0]  # Get first result
+                return result['label']  # This will return 'Yes', 'No', or 'Other'
+            except Exception as e:
+                print(f"Error in sentiment analysis: {e}")
+                return 'Other'  # Default fallback
+            
+        def get_alternative_sentiment(self, text):
+            try:
+                results = self.sentiment_pipe(text)  # Get all results
+            
+                # If no results, return Other
+                if not results:
+                    return 'Other'
+            
+                primary_label = results[0]['label']
+            
+                 # If primary result isn't 'Other', return it
+                if primary_label != 'Other':
+                    return primary_label
+            
+                # If we have multiple results and primary is 'Other',
+                # return the next highest confidence label
+                if len(results) > 1:
+                    return results[1]['label']
+                
+                return 'Other'  # Default if no alternative found
+            
+            except Exception as e:
+                print(f"Error in alternative sentiment analysis: {e}")
+                return 'Other'
         
         def lm_studio_client(self):
                 return self.client
