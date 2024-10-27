@@ -10,7 +10,7 @@ import os
 import re
 import json
 import torch
-import torch.nn.functional as F
+from enum import Enum
 
 class ChatHistory:
 # A class for managing the chat history between users and LLM.
@@ -304,3 +304,78 @@ class Prompting:
         else:
             self.history.add("user", user_id, f"{transcription}. This is a message from {user_id}, respond.")
             print(f"{transcription}. This is a message from {user_id}, respond.")
+
+#region SentimentAnalyzer RegEx
+
+# Class for classifying sentiment strength
+class SentimentStrength(Enum):
+    STRONG_NEGATIVE = -2  # hate, despise
+    NEGATIVE = -1        # dislike
+    NEUTRAL = 0          # neutral/unknown
+    POSITIVE = 1         # like
+    STRONG_POSITIVE = 2  # love, adore
+
+# RegEx for finding and filtering sentiments in a sentence.
+class SentimentAnalyzer:
+    def __init__(self):
+        # Define basic sentiment words
+        self.positive_words = r'(like|likes|liking|enjoy|enjoys|enjoying)'
+        self.strong_positive_words = r'(love|loves|loving|adore|adores|adoring|favorite|favourite)'
+        self.negative_words = r'(dislike|dislikes|disliking)'
+        self.strong_negative_words = r'(hate|hates|hating|despise|despises|despising)'
+        
+        # Define negation words
+        self.negation = r'(don\'?t|doesn\'?t|not|never|no\slonger|won\'?t)'
+        
+        # Patterns that check for negation before sentiment words
+        self.sentiment_patterns = {
+            SentimentStrength.STRONG_POSITIVE: [
+                f"\\b{self.strong_positive_words}\\b",
+                f"\\breally {self.positive_words}\\b",
+                r'\bcan\'?t get enough of\b'
+            ],
+            SentimentStrength.POSITIVE: [
+                f"\\b{self.positive_words}\\b"
+            ],
+            SentimentStrength.NEGATIVE: [
+                f"\\b{self.negative_words}\\b",
+                f"\\b{self.negation}\\s+{self.positive_words}\\b",
+                r'\bnot (?:a fan of|into)\b'
+            ],
+            SentimentStrength.STRONG_NEGATIVE: [
+                f"\\b{self.strong_negative_words}\\b",
+                f"\\b{self.negation}\\s+{self.strong_positive_words}\\b",
+                r'\bcan\'?t stand\b',
+                f"\\breally {self.negative_words}\\b"
+            ]
+        }
+        
+        # Compile patterns
+        self.compiled_patterns = {
+            strength: re.compile('|'.join(patterns), re.IGNORECASE)
+            for strength, patterns in self.sentiment_patterns.items()
+        }
+
+    def get_sentiment(self, text):
+        # Check for negated expressions first
+        strongest_sentiment = SentimentStrength.NEUTRAL
+        
+        for strength, pattern in self.compiled_patterns.items():
+            if pattern.search(text):
+                if abs(strength.value) > abs(strongest_sentiment.value):
+                    strongest_sentiment = strength
+        
+        return {
+            'strength': strongest_sentiment,
+            'word': self.format_sentiment_word(strongest_sentiment)
+        }
+
+    def format_sentiment_word(self, sentiment_strength):
+        return {
+            SentimentStrength.STRONG_POSITIVE: "loves",
+            SentimentStrength.POSITIVE: "likes",
+            SentimentStrength.NEUTRAL: "has mentioned",
+            SentimentStrength.NEGATIVE: "dislikes",
+            SentimentStrength.STRONG_NEGATIVE: "hates"
+        }.get(sentiment_strength, "has mentioned")
+#endregion
