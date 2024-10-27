@@ -1,6 +1,7 @@
 import asyncio
-from messages import TextFormatting, Prompting, PostChat, ChatLog
+from messages import TextFormatting, Prompting, PostChat, ChatLog, SentimentAnalyzer
 from chat_completions import Completions
+from node_categories import PreferenceClassifier, PreferenceProcessor
 from node_manager import NodeManager
 from memory import Memory
 
@@ -26,13 +27,16 @@ class NodeRegistry:
         self.chat_history = chat_history
         self.user_id = user_id
         self.remember = ""
+        self.analyzer = SentimentAnalyzer()
         self.prompt = Prompting(chat_history)
         self.chat_log = ChatLog()
         self.post = PostChat(message_queue)
         self.memory = Memory("memories", self.models)
         self.chat = Completions(chat_history, models, self.chat_log, self.post)
         self.text = TextFormatting(chat_history, models)
-        self.node_manager = NodeManager(self)  # Add NodeManager instance
+        self.node_manager = NodeManager(self)  # Add Node Modules
+        self.preference_classifier = PreferenceClassifier(models)
+        self.processor = PreferenceProcessor(models)
         
         # Initialize nodes
         self.setup_nodes()
@@ -102,9 +106,10 @@ class NodeRegistry:
 
     async def verify_remember_this(self, transcription):
         self.remember = await self.text.get_short_context(2)
+        print(f"Sentiment found in context: {await self.analyze_preference(self.remember)}")
         self.post.add_to_queue(msg_type="user", content=transcription)
         print(f"To remember: {self.remember}")
-        self.chat_history.add("user", self.user_id, f"Ask {self.user_id} if they want you to remember this: {self.remember}. You MUST tell them what it is they asked you to remember. Ask the user to if they want it remembered or not. Don't be too formal about it.")
+        self.chat_history.add("user", "Assistant", f"I should ask {self.user_id} if they want you to remember this: {self.remember}. I MUST tell them what it is they asked you to remember. I will also ask the user to if they want it remembered or not. I should address the user casually when I ask.")
         reply = await self.chat.bnuuybot_completion()
         if reply is not None:
             self.tts.add_to_tts_queue(reply)
@@ -119,17 +124,18 @@ class NodeRegistry:
         self.post.add_to_queue(msg_type="user", content=transcription)
         print(sentiment)
         if sentiment == 'Yes':
-            context = f"{self.user_id} wants you to remember this. Do you want to remember this? Tell {self.user_id} what you decided to do. Make your own choice."
+            context = f"{self.user_id} wants me to remember this. Do I want to remember this? I will tell {self.user_id} what I have decided to do, I can make my own choices after all."
             # I am going to rework the logic before adding things because it makes for very ugly "memories"
-            # self.memory.add_memory(self.user_id, self.remember)
+            self.memory = await self.processor.process_text(self.memory, self.user_id)
             print("Stored to memory.")
+            print(self.memory)
         elif sentiment == 'No':
-            context = f"{self.user_id} doesn't want you to remember this. Do you want to remember this? Tell {self.user_id} what you decided to do. Make your own choice."
+            context = f"{self.user_id} doesn't want me to remember this. Do I want to remember this? I will tell {self.user_id} what I have decided to do, I can make my own choices after all."
         else:
-            context = f"{self.user_id} can't seem to decide if it's worth remembering or not. Do you want to remember this? Tell {self.user_id} what you decided to do. Make your own choice."
+            context = f"{self.user_id} can't seem to decide if it's worth remembering or not. Do I want to remember this anyways or not? I will tell {self.user_id} what I have decided to do, I can make my own choices after all."
     
         # Add context to chat history and get response
-        self.chat_history.add("user", self.user_id, context)
+        self.chat_history.add("user", "Assistant", context)
         reply = await self.chat.bnuuybot_completion()
         
         if reply is not None:
@@ -139,3 +145,8 @@ class NodeRegistry:
     
         # Return to start node
         self.node_manager.transition_to_node("start")
+
+    async def analyze_preference(self, transcription):
+        sentences = self.text.split_into_sentences(transcription)
+        result = self.analyzer.get_sentiment(sentences)
+        return result['word']
