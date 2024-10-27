@@ -23,7 +23,7 @@ class LLMModels:
                                              top_k=None, 
                                              device=device
                                              )
-                self.intent_pipe = pipeline(task="zero-shot-classification", 
+                self.classifier = pipeline(task="zero-shot-classification", 
                                        model="facebook/bart-large-mnli",
                                        device=device
                                        )
@@ -41,6 +41,9 @@ class LLMModels:
         def get_summarizer(self):
                 return self.summarizer
         
+        def get_classifier(self):
+                return self.classifier
+        
         def get_emotion(self, text):
                 emotion = self.emotion_pipe(text)
                 feeling = emotion[0]
@@ -49,7 +52,7 @@ class LLMModels:
                 
         def get_intent(self, text):
                 labels = ["question", "statement", "command", "remember that"]
-                intent = self.intent_pipe(text, labels)
+                intent = self.classifier(text, labels)
                 if intent['scores'][0] > 0.5:
                     return intent['labels'][0]
                 
