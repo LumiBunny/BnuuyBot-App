@@ -110,7 +110,7 @@ class PreferenceProcessor:
             category: PreferenceExtractor(category)
             for category in self.classifier.categories
         }
-
+    # This whole thing needs to be reworked.
     async def process_text(self, text, user_id):
         best_result = None
         best_score = 0
