@@ -25,7 +25,7 @@ class STT:
         # Initialize AudioTimer
         self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self.tts, timeout=audio_timeout)
 
-        # Initialize Azure TTS
+        # Initialize Azure AI Speech services.
         self.azure_ai = Azure_AI(self.audio_timer)
 
         print("Ready!\n")

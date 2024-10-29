@@ -29,9 +29,12 @@ class ChatHistory:
     
     def get_recent_messages(self, num):
         """Return the last n messages from the chat history."""
-        recent_messages = self.history[-num:] if num <= len(self.history) else self.history
-        # Ensure each message has the correct format
-        return [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages]
+        if len(self.history) >= num:
+            recent_messages = self.history[-num:]
+        else:
+            recent_messages = self.history
+        
+        return recent_messages
 
     def get_content(self):
         recent = self.get_most_recent()
@@ -172,14 +175,20 @@ class TextFormatting:
         return summary[0]['summary_text']
     
     async def get_short_context(self, num):
-        if num < len(self.history):
-            num = len(self.history)
-        context = self.chat_history.get_recent_messages(num)
-        if not isinstance(context, str):
-            if isinstance(context, list):
-                context = " ".join([f"{getattr(msg, 'role', 'Unknown')}: {getattr(msg, 'content', str(msg))}" for msg in context])
+        recent_messages = self.chat_history.get_recent_messages(num)
+        print(recent_messages)
+        # Format the messages
+        context_lines = []
+        for msg in recent_messages:
+            if msg.get("role") == "user":
+                context_lines.append(f"User: {msg['content']}")
+            elif msg.get("role") == "assistant":
+                context_lines.append(f"Assistant: {msg['content']}")
             else:
-                context = str(context)
+                context_lines.append(f"{msg.get('role', 'Unknown')}: {msg['content']}")
+        
+        context = "\n".join(context_lines)
+        #print(context)
         # Summarization pipeline
         max_length = min(len(context.split()) // 2, 30)  # Aim for half the original length, or max
         min_length = max(10, max_length // 2)  # At least 10 tokens, or half of max_length
@@ -192,6 +201,19 @@ class TextFormatting:
         )
 
         return summary[0]['summary_text']
+    
+    def history_list_to_string(self, text):
+        string = []
+        for msg in text:
+            if msg.get("role") == "user":
+                string.append(f"User: {msg['content']}")
+            elif msg.get("role") == "assistant":
+                string.append(f"Assistant: {msg['content']}")
+            else:
+                string.append(f"{msg.get('role', 'Unknown')}: {msg['content']}")
+        
+        new_string = "\n".join(string)
+        return new_string
     
     def strip_emoji(self, text):
         # Remove emojis from text for better TTS.

@@ -1,7 +1,7 @@
 import asyncio
 from messages import TextFormatting, Prompting, PostChat, ChatLog, SentimentAnalyzer
 from chat_completions import Completions
-from node_categories import PreferenceClassifier, PreferenceProcessor
+from preferences import PreferenceClassifier, PreferenceProcessor
 from node_manager import NodeManager
 from memory import Memory
 
@@ -36,7 +36,7 @@ class NodeRegistry:
         self.text = TextFormatting(chat_history, models)
         self.node_manager = NodeManager(self)  # Add Node Modules
         self.preference_classifier = PreferenceClassifier(models)
-        self.processor = PreferenceProcessor(models)
+        self.processor = PreferenceProcessor(models, chat_history)
         
         # Initialize nodes
         self.setup_nodes()
@@ -53,6 +53,7 @@ class NodeRegistry:
 
     async def starting_node_handler(self, transcription):
             print("You: ", transcription)
+            self.chat_history.add("user", self.user_id, transcription)
             intent = self.models.get_intent(transcription)
             print("intent", intent)
             if self.prompt.get_attention(self.user_id, transcription):
@@ -105,7 +106,9 @@ class NodeRegistry:
             self.stt.audio_timer.start_timer()
 
     async def verify_remember_this(self, transcription):
-        self.remember = await self.text.get_short_context(2)
+        recent = self.chat_history.get_recent_messages(3)
+        self.remember = self.text.history_list_to_string(recent)
+        print(self.remember)
         print(f"Sentiment found in context: {await self.analyze_preference(self.remember)}")
         self.post.add_to_queue(msg_type="user", content=transcription)
         print(f"To remember: {self.remember}")
@@ -120,15 +123,16 @@ class NodeRegistry:
         
     async def remember_this(self, transcription):
         print("You: ", transcription)
+        self.chat_history.add("user", self.user_id, transcription)
         sentiment = self.models.get_sentiment(transcription)
         self.post.add_to_queue(msg_type="user", content=transcription)
         print(sentiment)
         if sentiment == 'Yes':
             context = f"{self.user_id} wants me to remember this. Do I want to remember this? I will tell {self.user_id} what I have decided to do, I can make my own choices after all."
             # I am going to rework the logic before adding things because it makes for very ugly "memories"
-            self.memory = await self.processor.process_text(self.memory, self.user_id)
+            self.to_remember = await self.processor.process_text(self.remember, self.user_id)
             print("Stored to memory.")
-            print(self.memory)
+            print(self.to_remember)
         elif sentiment == 'No':
             context = f"{self.user_id} doesn't want me to remember this. Do I want to remember this? I will tell {self.user_id} what I have decided to do, I can make my own choices after all."
         else:
@@ -148,5 +152,6 @@ class NodeRegistry:
 
     async def analyze_preference(self, transcription):
         sentences = self.text.split_into_sentences(transcription)
-        result = self.analyzer.get_sentiment(sentences)
+        text = ' '.join(sentences)
+        result = self.analyzer.get_sentiment(text)
         return result['word']
