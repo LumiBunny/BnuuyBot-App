@@ -85,6 +85,7 @@ class PreferenceExtractor:
                     if item:
                         extracted_items.add(item)
         
+        print(f"def extract_items, extracted_items: {extracted_items}")
         return list(extracted_items)
 
     def clean_extracted_item(self, text: str) -> Optional[str]:
@@ -96,7 +97,9 @@ class PreferenceExtractor:
             text = ' '.join(text.split())
             # Remove common punctuation
             text = text.strip('.,!?')
+            print(f"def clean_extracted_item, text: {text.strip()}")
             return text.strip()
+        print("No item found!")
         return None
 
 class PreferenceProcessor:
@@ -132,13 +135,14 @@ class PreferenceProcessor:
 
                     # Format the best result
                     for item in items:
-                        formatted_item = f"{user_id} {self.get_sentiment_word(item)} {item}"
+                        formatted_item = f"{user_id} {self.get_sentiment_word(item)} {item}" # ????? why is item being sent to get_sentiment_word?
                         print(f"Formatted result: {formatted_item}")
                         best_result = formatted_item
                         best_score = confidence
 
         return best_result or ""
 
+    # We need to rework this too.
     def get_sentiment_word(self, text: str) -> str:
         """Simple sentiment analysis for preference statements"""
         text = text.lower()

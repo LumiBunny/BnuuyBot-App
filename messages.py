@@ -387,11 +387,14 @@ class SentimentAnalyzer:
                 if abs(strength.value) > abs(strongest_sentiment.value):
                     strongest_sentiment = strength
         
+        # DEBUGGING
+        print(f"Strongest sentiment: {strongest_sentiment}, Word: {self.format_sentiment_word(strongest_sentiment)}")
         return {
             'strength': strongest_sentiment,
             'word': self.format_sentiment_word(strongest_sentiment)
         }
 
+    # We need to rework this.
     def format_sentiment_word(self, sentiment_strength):
         return {
             SentimentStrength.STRONG_POSITIVE: "loves",

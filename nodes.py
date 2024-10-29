@@ -109,10 +109,10 @@ class NodeRegistry:
         recent = self.chat_history.get_recent_messages(3)
         self.remember = self.text.history_list_to_string(recent)
         print(self.remember)
-        print(f"Sentiment found in context: {await self.analyze_preference(self.remember)}")
+        print(f"Sentiment found in context: {await self.analyze_preference(self.remember)}") # Works
         self.post.add_to_queue(msg_type="user", content=transcription)
-        print(f"To remember: {self.remember}")
-        self.chat_history.add("user", "Assistant", f"I should ask {self.user_id} if they want you to remember this: {self.remember}. I MUST tell them what it is they asked you to remember. I will also ask the user to if they want it remembered or not. I should address the user casually when I ask.")
+        print(f"To remember: {self.remember}") # Pulls correct sentence with sentiment.
+        self.chat_history.add("user", "System", f"Ask {self.user_id} if they want you to remember this: {self.remember}. You MUST tell them what it is they asked you to remember. You will also ask the user to if they want it remembered or not. You should address the user casually when you ask.")
         reply = await self.chat.bnuuybot_completion()
         if reply is not None:
             self.tts.add_to_tts_queue(reply)
@@ -129,6 +129,8 @@ class NodeRegistry:
         print(sentiment)
         if sentiment == 'Yes':
             context = f"{self.user_id} wants me to remember this. Do I want to remember this? I will tell {self.user_id} what I have decided to do, I can make my own choices after all."
+            # DEBUGGING
+            print(self.user_id)
             # I am going to rework the logic before adding things because it makes for very ugly "memories"
             self.to_remember = await self.processor.process_text(self.remember, self.user_id)
             print("Stored to memory.")
