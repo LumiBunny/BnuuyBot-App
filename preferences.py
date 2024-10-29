@@ -111,6 +111,7 @@ class PreferenceProcessor:
             for category in self.classifier.categories
         }
 
+    # We need to redo this whole thing here.
     async def process_text(self, text, user_id):
         best_result = None
         best_score = 0
