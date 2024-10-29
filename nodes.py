@@ -106,9 +106,8 @@ class NodeRegistry:
             self.stt.audio_timer.start_timer()
 
     async def verify_remember_this(self, transcription):
-        recent = self.chat_history.get_recent_messages(3)
-        self.remember = self.text.history_list_to_string(recent)
-        print(self.remember)
+        self.recent = self.chat_history.get_recent_messages(3)
+        self.remember = self.text.history_list_to_string(self.recent)
         print(f"Sentiment found in context: {await self.analyze_preference(self.remember)}") # Works
         self.post.add_to_queue(msg_type="user", content=transcription)
         print(f"To remember: {self.remember}") # Pulls correct sentence with sentiment.
@@ -132,7 +131,7 @@ class NodeRegistry:
             # DEBUGGING
             print(self.user_id)
             # I am going to rework the logic before adding things because it makes for very ugly "memories"
-            self.to_remember = await self.processor.process_text(self.remember, self.user_id)
+            self.to_remember = await self.processor.process_text(self.recent, self.user_id)
             print("Stored to memory.")
             print(self.to_remember)
         elif sentiment == 'No':

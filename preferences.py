@@ -97,7 +97,7 @@ class PreferenceExtractor:
             text = ' '.join(text.split())
             # Remove common punctuation
             text = text.strip('.,!?')
-            print(f"def clean_extracted_item, text: {text.strip()}")
+            print(f"def clean_extracted_item, text: {text.strip()}") # returns set()???
             return text.strip()
         print("No item found!")
         return None
@@ -111,17 +111,17 @@ class PreferenceProcessor:
             for category in self.classifier.categories
         }
 
-    async def process_text(self, chat_history: List[dict], user_id: str) -> str:
+    async def process_text(self, text, user_id):
         best_result = None
         best_score = 0
 
-        for msg in self.chat_history:
+        for msg in text:
             # Process each message individually
-            text = f"{msg['role']}: {msg['content']}"
-            print(f"Input text: {text}")
+            message_text = f"{msg['role']}: {msg['content']}"
+            print(f"Input text: {message_text}")
 
             # Classify the text
-            classification = self.classifier.classify_preference(text)
+            classification = self.classifier.classify_preference(message_text)
             category = classification['category']
             confidence = classification['confidence']
             print(f"Classified category: {category} (confidence: {confidence})")
@@ -130,12 +130,13 @@ class PreferenceProcessor:
                 # Extract items
                 extractor = self.extractors.get(category)
                 if extractor:
-                    items = await extractor.extract_items(text)
+                    items = await extractor.extract_items(message_text)
                     print(f"Extracted items: {items}")
 
                     # Format the best result
                     for item in items:
-                        formatted_item = f"{user_id} {self.get_sentiment_word(item)} {item}" # ????? why is item being sent to get_sentiment_word?
+                        sentiment_word = self.get_sentiment_word(message_text)
+                        formatted_item = f"{user_id} {sentiment_word} {item}"
                         print(f"Formatted result: {formatted_item}")
                         best_result = formatted_item
                         best_score = confidence
