@@ -10,7 +10,7 @@ import os
 import re
 import json
 import torch
-import torch.nn.functional as F
+from enum import Enum
 
 class ChatHistory:
 # A class for managing the chat history between users and LLM.
@@ -28,10 +28,19 @@ class ChatHistory:
         return self.history
     
     def get_recent_messages(self, num):
-        """Return the last n messages from the chat history."""
+        """Return the last n messages from the chat history as a list of message objects."""
         recent_messages = self.history[-num:] if num <= len(self.history) else self.history
-        # Ensure each message has the correct format
-        return [{"role": msg["role"], "content": msg["content"]} for msg in recent_messages]
+        
+        # Convert to the format expected by the OpenAI API
+        formatted_messages = []
+        for msg in recent_messages:
+            formatted_messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+        
+        print(type(formatted_messages))
+        return formatted_messages
 
     def get_content(self):
         recent = self.get_most_recent()
@@ -172,14 +181,20 @@ class TextFormatting:
         return summary[0]['summary_text']
     
     async def get_short_context(self, num):
-        if num < len(self.history):
-            num = len(self.history)
-        context = self.chat_history.get_recent_messages(num)
-        if not isinstance(context, str):
-            if isinstance(context, list):
-                context = " ".join([f"{getattr(msg, 'role', 'Unknown')}: {getattr(msg, 'content', str(msg))}" for msg in context])
+        recent_messages = self.chat_history.get_recent_messages(num)
+        print(recent_messages)
+        # Format the messages
+        context_lines = []
+        for msg in recent_messages:
+            if msg.get("role") == "user":
+                context_lines.append(f"User: {msg['content']}")
+            elif msg.get("role") == "assistant":
+                context_lines.append(f"Assistant: {msg['content']}")
             else:
-                context = str(context)
+                context_lines.append(f"{msg.get('role', 'Unknown')}: {msg['content']}")
+        
+        context = "\n".join(context_lines)
+        #print(context)
         # Summarization pipeline
         max_length = min(len(context.split()) // 2, 30)  # Aim for half the original length, or max
         min_length = max(10, max_length // 2)  # At least 10 tokens, or half of max_length
@@ -304,3 +319,76 @@ class Prompting:
         else:
             self.history.add("user", user_id, f"{transcription}. This is a message from {user_id}, respond.")
             print(f"{transcription}. This is a message from {user_id}, respond.")
+
+#region SentimentAnalyzer RegEx
+
+# Class for classifying sentiment strength
+class SentimentStrength(Enum):
+    STRONG_NEGATIVE = -2  # hate, despise
+    NEGATIVE = -1        # dislike
+    NEUTRAL = 0          # neutral/unknown
+    POSITIVE = 1         # like
+    STRONG_POSITIVE = 2  # love, adore
+
+class SentimentAnalyzer:
+    def __init__(self):
+        # Define basic sentiment words
+        self.positive_words = r'(like|likes|liking|enjoy|enjoys|enjoying)'
+        self.strong_positive_words = r'(love|loves|loving|adore|adores|adoring|favorite|favourite)'
+        self.negative_words = r'(dislike|dislikes|disliking)'
+        self.strong_negative_words = r'(hate|hates|hating|despise|despises|despising)'
+        
+        # Define negation words
+        self.negation = r'(don\'?t|doesn\'?t|not|never|no\slonger|won\'?t)'
+        
+        # Patterns that check for negation before sentiment words
+        self.sentiment_patterns = {
+            SentimentStrength.STRONG_POSITIVE: [
+                f"\\b{self.strong_positive_words}\\b",
+                f"\\breally {self.positive_words}\\b",
+                r'\bcan\'?t get enough of\b'
+            ],
+            SentimentStrength.POSITIVE: [
+                f"\\b{self.positive_words}\\b"
+            ],
+            SentimentStrength.NEGATIVE: [
+                f"\\b{self.negative_words}\\b",
+                f"\\b{self.negation}\\s+{self.positive_words}\\b",
+                r'\bnot (?:a fan of|into)\b'
+            ],
+            SentimentStrength.STRONG_NEGATIVE: [
+                f"\\b{self.strong_negative_words}\\b",
+                f"\\b{self.negation}\\s+{self.strong_positive_words}\\b",
+                r'\bcan\'?t stand\b',
+                f"\\breally {self.negative_words}\\b"
+            ]
+        }
+        
+        # Compile patterns
+        self.compiled_patterns = {
+            strength: re.compile('|'.join(patterns), re.IGNORECASE)
+            for strength, patterns in self.sentiment_patterns.items()
+        }
+
+    async def get_sentiment(self, text: str) -> dict:
+        for strength, pattern in self.compiled_patterns.items():
+            if pattern.search(text):
+                return {
+                    'strength': strength,
+                    'word': await self.strength_to_word(strength)
+                }
+        return {'strength': SentimentStrength.NEUTRAL, 'word': 'has mentioned'}
+
+    async def strength_to_word(self, strength: SentimentStrength) -> str:
+        if strength == SentimentStrength.STRONG_POSITIVE:
+            return 'loves'
+        elif strength == SentimentStrength.POSITIVE:
+            return 'likes'
+        elif strength == SentimentStrength.NEGATIVE:
+            return 'dislikes'
+        elif strength == SentimentStrength.STRONG_NEGATIVE:
+            return 'hates'
+        else:
+            return 'has mentioned'
+            
+#endregion
