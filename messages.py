@@ -28,13 +28,19 @@ class ChatHistory:
         return self.history
     
     def get_recent_messages(self, num):
-        """Return the last n messages from the chat history."""
-        if len(self.history) >= num:
-            recent_messages = self.history[-num:]
-        else:
-            recent_messages = self.history
+        """Return the last n messages from the chat history as a list of message objects."""
+        recent_messages = self.history[-num:] if num <= len(self.history) else self.history
         
-        return recent_messages
+        # Convert to the format expected by the OpenAI API
+        formatted_messages = []
+        for msg in recent_messages:
+            formatted_messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+        
+        print(type(formatted_messages))
+        return formatted_messages
 
     def get_content(self):
         recent = self.get_most_recent()
@@ -378,29 +384,25 @@ class SentimentAnalyzer:
             for strength, patterns in self.sentiment_patterns.items()
         }
 
-    def get_sentiment(self, text):
-        # Check for negated expressions first
-        strongest_sentiment = SentimentStrength.NEUTRAL
-        
+    async def get_sentiment(self, text: str) -> dict:
         for strength, pattern in self.compiled_patterns.items():
             if pattern.search(text):
-                if abs(strength.value) > abs(strongest_sentiment.value):
-                    strongest_sentiment = strength
-        
-        # DEBUGGING
-        print(f"Strongest sentiment: {strongest_sentiment}, Word: {self.format_sentiment_word(strongest_sentiment)}")
-        return {
-            'strength': strongest_sentiment,
-            'word': self.format_sentiment_word(strongest_sentiment)
-        }
+                return {
+                    'strength': strength,
+                    'word': await self.strength_to_word(strength)
+                }
+        return {'strength': SentimentStrength.NEUTRAL, 'word': 'has mentioned'}
 
-    # We need to rework this.
-    def format_sentiment_word(self, sentiment_strength):
-        return {
-            SentimentStrength.STRONG_POSITIVE: "loves",
-            SentimentStrength.POSITIVE: "likes",
-            SentimentStrength.NEUTRAL: "has mentioned",
-            SentimentStrength.NEGATIVE: "dislikes",
-            SentimentStrength.STRONG_NEGATIVE: "hates"
-        }.get(sentiment_strength, "has mentioned")
+    async def strength_to_word(self, strength: SentimentStrength) -> str:
+        if strength == SentimentStrength.STRONG_POSITIVE:
+            return 'loves'
+        elif strength == SentimentStrength.POSITIVE:
+            return 'likes'
+        elif strength == SentimentStrength.NEGATIVE:
+            return 'dislikes'
+        elif strength == SentimentStrength.STRONG_NEGATIVE:
+            return 'hates'
+        else:
+            return 'has mentioned'
+            
 #endregion
