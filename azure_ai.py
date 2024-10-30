@@ -11,7 +11,7 @@ class Azure_AI():
                 # Setup of Azure TTS voice settings, can preview these online.
                 self.voice_name = "en-US-AvaMultilingualNeural"
                 self.pitch_percentage = "+14%"
-                self.rate_percentage = "+20%"
+                self.rate_percentage = "+25%"
 
                 # This class requires environment variables named "SPEECH_KEY" and "SPEECH_REGION"
                 self.speech_config = speechsdk.SpeechConfig(subscription=os.environ.get('SPEECH_KEY'), region=os.environ.get('SPEECH_REGION'))
@@ -25,7 +25,7 @@ class Azure_AI():
                 self.speech_config.speech_recognition_language="en-US"
                 self.speech_config.set_profanity(speechsdk.ProfanityOption.Removed)
                 self.audio_input_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
-                self.speech_config.set_property(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "600000")
+                self.speech_config.set_property(speechsdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, "60000000")
                 self.speech_recognizer = speechsdk.SpeechRecognizer(speech_config=self.speech_config, audio_config=self.audio_input_config)
 
                 self.is_listening = False
