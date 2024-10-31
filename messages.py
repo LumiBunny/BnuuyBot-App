@@ -28,13 +28,17 @@ class ChatHistory:
         return self.history
     
     def get_recent_messages(self, num):
-        """Return the last n messages from the chat history."""
-        if len(self.history) >= num:
-            recent_messages = self.history[-num:]
-        else:
-            recent_messages = self.history
+        """Return the last n messages from the chat history as a list of message objects."""
+        recent_messages = self.history[-num:] if num <= len(self.history) else self.history
         
-        return recent_messages
+        # Convert to the format expected by the OpenAI API
+        formatted_messages = []
+        for msg in recent_messages:
+            formatted_messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+        return formatted_messages
 
     def get_content(self):
         recent = self.get_most_recent()
@@ -145,6 +149,16 @@ class TextFormatting:
         self.models = models
         self.summarizer = models.get_summarizer()
 
+    async def format_list(items):
+        if len(items) == 0:
+            return "something"
+        elif len(items) == 1:
+            return items[0]
+        elif len(items) == 2:
+            return f"{items[0]} and {items[1]}"
+        else:
+            return ", ".join(items[:-1]) + f", and {items[-1]}"
+
     async def format_for_tts(self, reply):
         reply = self.strip_emoji(reply)
         reply = self.bnuuybot_reply_filter(reply)
@@ -201,19 +215,6 @@ class TextFormatting:
         )
 
         return summary[0]['summary_text']
-    
-    def history_list_to_string(self, text):
-        string = []
-        for msg in text:
-            if msg.get("role") == "user":
-                string.append(f"User: {msg['content']}")
-            elif msg.get("role") == "assistant":
-                string.append(f"Assistant: {msg['content']}")
-            else:
-                string.append(f"{msg.get('role', 'Unknown')}: {msg['content']}")
-        
-        new_string = "\n".join(string)
-        return new_string
     
     def strip_emoji(self, text):
         # Remove emojis from text for better TTS.
@@ -336,39 +337,42 @@ class SentimentStrength(Enum):
     NEUTRAL = 0          # neutral/unknown
     POSITIVE = 1         # like
     STRONG_POSITIVE = 2  # love, adore
+    FAVOURITE = 3        # favourite
 
-# RegEx for finding and filtering sentiments in a sentence.
 class SentimentAnalyzer:
     def __init__(self):
         # Define basic sentiment words
+        self.favourite_words = r'(favorite|favourite|fave|fav)'
         self.positive_words = r'(like|likes|liking|enjoy|enjoys|enjoying)'
         self.strong_positive_words = r'(love|loves|loving|adore|adores|adoring|favorite|favourite)'
         self.negative_words = r'(dislike|dislikes|disliking)'
         self.strong_negative_words = r'(hate|hates|hating|despise|despises|despising)'
         
         # Define negation words
-        self.negation = r'(don\'?t|doesn\'?t|not|never|no\slonger|won\'?t)'
+        self.negation = r'(don\'?t|doesn\'?t|not|never|no\slonger|won\'?t|isn\'?t)'
         
         # Patterns that check for negation before sentiment words
         self.sentiment_patterns = {
+            SentimentStrength.FAVOURITE: [
+                r'\b(?:' + self.favourite_words + r')\b'
+            ],
             SentimentStrength.STRONG_POSITIVE: [
-                f"\\b{self.strong_positive_words}\\b",
-                f"\\breally {self.positive_words}\\b",
-                r'\bcan\'?t get enough of\b'
+                r'\breally\s+(?:' + self.strong_positive_words + r')\b',
+                r'\b(?:' + self.strong_positive_words + r')\b',
+                r'\bcan\'?t\s+get\s+enough\s+of\b',
             ],
             SentimentStrength.POSITIVE: [
-                f"\\b{self.positive_words}\\b"
+                r'\b(?:' + self.positive_words + r')\b',
+                r'\binto\b',
             ],
             SentimentStrength.NEGATIVE: [
-                f"\\b{self.negative_words}\\b",
-                f"\\b{self.negation}\\s+{self.positive_words}\\b",
-                r'\bnot (?:a fan of|into)\b'
+                r'\b(?:' + self.negative_words + r')\b',
+                r'\bnot\s+(?:a\s+fan\s+of|into)\b',
             ],
             SentimentStrength.STRONG_NEGATIVE: [
-                f"\\b{self.strong_negative_words}\\b",
-                f"\\b{self.negation}\\s+{self.strong_positive_words}\\b",
-                r'\bcan\'?t stand\b',
-                f"\\breally {self.negative_words}\\b"
+                r'\breally\s+(?:' + self.negative_words + r')\b',
+                r'\b(?:' + self.strong_negative_words + r')\b',
+                r'\bcan\'?t\s+stand\b',
             ]
         }
         
@@ -378,29 +382,43 @@ class SentimentAnalyzer:
             for strength, patterns in self.sentiment_patterns.items()
         }
 
-    def get_sentiment(self, text):
-        # Check for negated expressions first
-        strongest_sentiment = SentimentStrength.NEUTRAL
+    async def get_sentiment(self, text: str) -> dict:
+        text = text.lower()
+        negated = bool(re.search(self.negation, text))
         
+        matches = []
         for strength, pattern in self.compiled_patterns.items():
             if pattern.search(text):
-                if abs(strength.value) > abs(strongest_sentiment.value):
-                    strongest_sentiment = strength
+                matches.append((strength, pattern))
         
-        # DEBUGGING
-        print(f"Strongest sentiment: {strongest_sentiment}, Word: {self.format_sentiment_word(strongest_sentiment)}")
+        if not matches:
+            return {'strength': SentimentStrength.NEUTRAL, 'word': 'has mentioned'}
+        
+        # Sort matches by sentiment strength
+        matches.sort(key=lambda x: abs(x[0].value), reverse=True)
+        
+        strength, _ = matches[0]
+        
+        if negated:
+            strength = SentimentStrength(-strength.value)
+        
         return {
-            'strength': strongest_sentiment,
-            'word': self.format_sentiment_word(strongest_sentiment)
+            'strength': strength,
+            'word': await self.strength_to_word(strength)
         }
 
-    # We need to rework this.
-    def format_sentiment_word(self, sentiment_strength):
-        return {
-            SentimentStrength.STRONG_POSITIVE: "loves",
-            SentimentStrength.POSITIVE: "likes",
-            SentimentStrength.NEUTRAL: "has mentioned",
-            SentimentStrength.NEGATIVE: "dislikes",
-            SentimentStrength.STRONG_NEGATIVE: "hates"
-        }.get(sentiment_strength, "has mentioned")
+    async def strength_to_word(self, strength: SentimentStrength) -> str:
+        if strength == SentimentStrength.FAVOURITE:
+            return 'favourite'
+        elif strength == SentimentStrength.STRONG_POSITIVE:
+            return 'loves'
+        elif strength == SentimentStrength.POSITIVE:
+            return 'likes'
+        elif strength == SentimentStrength.NEGATIVE:
+            return 'dislikes'
+        elif strength == SentimentStrength.STRONG_NEGATIVE:
+            return 'hates'
+        else:
+            return 'has mentioned'
+            
 #endregion
