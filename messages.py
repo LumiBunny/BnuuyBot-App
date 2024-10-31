@@ -38,8 +38,6 @@ class ChatHistory:
                 "role": msg["role"],
                 "content": msg["content"]
             })
-        
-        print(type(formatted_messages))
         return formatted_messages
 
     def get_content(self):
@@ -329,38 +327,39 @@ class SentimentStrength(Enum):
     NEUTRAL = 0          # neutral/unknown
     POSITIVE = 1         # like
     STRONG_POSITIVE = 2  # love, adore
+    FAVOURITE = 3        # favourite
 
 class SentimentAnalyzer:
     def __init__(self):
         # Define basic sentiment words
+        self.favourite_words = r'(favorite|favourite)'
         self.positive_words = r'(like|likes|liking|enjoy|enjoys|enjoying)'
         self.strong_positive_words = r'(love|loves|loving|adore|adores|adoring|favorite|favourite)'
         self.negative_words = r'(dislike|dislikes|disliking)'
         self.strong_negative_words = r'(hate|hates|hating|despise|despises|despising)'
         
         # Define negation words
-        self.negation = r'(don\'?t|doesn\'?t|not|never|no\slonger|won\'?t)'
+        self.negation = r'(don\'?t|doesn\'?t|not|never|no\slonger|won\'?t|isn\'?t)'
         
         # Patterns that check for negation before sentiment words
         self.sentiment_patterns = {
             SentimentStrength.STRONG_POSITIVE: [
-                f"\\b{self.strong_positive_words}\\b",
-                f"\\breally {self.positive_words}\\b",
-                r'\bcan\'?t get enough of\b'
+                r'\breally\s+(?:' + self.strong_positive_words + r')\b',
+                r'\b(?:' + self.strong_positive_words + r')\b',
+                r'\bcan\'?t\s+get\s+enough\s+of\b',
             ],
             SentimentStrength.POSITIVE: [
-                f"\\b{self.positive_words}\\b"
+                r'\b(?:' + self.positive_words + r')\b',
+                r'\binto\b',
             ],
             SentimentStrength.NEGATIVE: [
-                f"\\b{self.negative_words}\\b",
-                f"\\b{self.negation}\\s+{self.positive_words}\\b",
-                r'\bnot (?:a fan of|into)\b'
+                r'\b(?:' + self.negative_words + r')\b',
+                r'\bnot\s+(?:a\s+fan\s+of|into)\b',
             ],
             SentimentStrength.STRONG_NEGATIVE: [
-                f"\\b{self.strong_negative_words}\\b",
-                f"\\b{self.negation}\\s+{self.strong_positive_words}\\b",
-                r'\bcan\'?t stand\b',
-                f"\\breally {self.negative_words}\\b"
+                r'\breally\s+(?:' + self.negative_words + r')\b',
+                r'\b(?:' + self.strong_negative_words + r')\b',
+                r'\bcan\'?t\s+stand\b',
             ]
         }
         
@@ -371,13 +370,29 @@ class SentimentAnalyzer:
         }
 
     async def get_sentiment(self, text: str) -> dict:
+        text = text.lower()
+        negated = bool(re.search(self.negation, text))
+        
+        matches = []
         for strength, pattern in self.compiled_patterns.items():
             if pattern.search(text):
-                return {
-                    'strength': strength,
-                    'word': await self.strength_to_word(strength)
-                }
-        return {'strength': SentimentStrength.NEUTRAL, 'word': 'has mentioned'}
+                matches.append((strength, pattern))
+        
+        if not matches:
+            return {'strength': SentimentStrength.NEUTRAL, 'word': 'has mentioned'}
+        
+        # Sort matches by sentiment strength
+        matches.sort(key=lambda x: abs(x[0].value), reverse=True)
+        
+        strength, _ = matches[0]
+        
+        if negated:
+            strength = SentimentStrength(-strength.value)
+        
+        return {
+            'strength': strength,
+            'word': await self.strength_to_word(strength)
+        }
 
     async def strength_to_word(self, strength: SentimentStrength) -> str:
         if strength == SentimentStrength.STRONG_POSITIVE:

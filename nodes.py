@@ -53,8 +53,10 @@ class NodeRegistry:
     async def starting_node_handler(self, transcription):
             print("You: ", transcription)
             self.chat_history.add("user", self.user_id, transcription)
+            test_preferences = await self.preference_processor.process_text(self.chat_history, self.user_id)
+            print("preferences process_text returns: ", test_preferences)
             intent = self.models.get_intent(transcription)
-            print("intent", intent)
+            # print("intent", intent) # DEBUGGING, will make a module for voice commands
             if self.prompt.get_attention(self.user_id, transcription):
                 await self.get_attention()
             elif intent == "remember that":
@@ -95,7 +97,6 @@ class NodeRegistry:
         self.post.add_to_queue(msg_type="assistant", user_id="Assistant", content="💭 Oh yeah! I think Lumi mentioned this before!")
         context_with_memories = f"You remembered that {self.user_id} once spoke about this: {retrieved_memory}. Chat context: {context}. User message: {transcription}. This is a message from {self.user_id}. Respond to the message however you like."
         self.chat_history.add("user", "System", context_with_memories)
-        print(f"Context with memories: {context_with_memories}")
         retrieved_memory = None
 
         reply = await self.chat.bnuuybot_completion()
@@ -121,13 +122,9 @@ class NodeRegistry:
         self.chat_history.add("user", self.user_id, transcription)
         sentiment = self.models.get_decision(transcription)
         self.post.add_to_queue(msg_type="user", content=transcription)
-        print(sentiment)
         if sentiment == 'Yes':
             context = f"{self.user_id} wants you to remember this: {self.remember}. Do you want to remember this? You will tell {self.user_id} what you have decided to do, you can make my own choices after all."
-            # DEBUGGING
-            print(self.user_id)
-            # I am going to rework the logic before adding things because it makes for very ugly "memories"
-            print("Stored to memory.")
+            print("Stored to memory.") # Will add call to add to memory later
             print(self.remember)
         elif sentiment == 'No':
             context = f"{self.user_id} doesn't want you to remember this: {self.remember}. Do you want to remember this? You will tell {self.user_id} what you have decided to do, you can make my own choices after all."
@@ -135,7 +132,7 @@ class NodeRegistry:
             context = f"{self.user_id} can't seem to decide if it's worth remembering this or not: {self.remember}. Do you want to remember this anyways or not? You will tell {self.user_id} what you have decided to do, you can make my own choices after all."
     
         # Add context to chat history and get response
-        self.chat_history.add("user", "user", context)
+        self.chat_history.add("user", self.user_id, context)
         reply = await self.chat.bnuuybot_completion()
         
         if reply is not None:

@@ -48,7 +48,7 @@ class PreferenceProcessor:
             self.item_extractor = ItemExtractor(models)
 
         async def process_text(self, chat_history: List[dict], user_id: str) -> str:
-            recent_messages = chat_history.get_recent_messages(3)
+            recent_messages = chat_history.get_recent_messages(1)
             last_sentiment = None
             last_category = None
 
