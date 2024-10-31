@@ -149,6 +149,16 @@ class TextFormatting:
         self.models = models
         self.summarizer = models.get_summarizer()
 
+    async def format_list(items):
+        if len(items) == 0:
+            return "something"
+        elif len(items) == 1:
+            return items[0]
+        elif len(items) == 2:
+            return f"{items[0]} and {items[1]}"
+        else:
+            return ", ".join(items[:-1]) + f", and {items[-1]}"
+
     async def format_for_tts(self, reply):
         reply = self.strip_emoji(reply)
         reply = self.bnuuybot_reply_filter(reply)
