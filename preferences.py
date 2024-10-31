@@ -76,6 +76,8 @@ class PreferenceProcessor:
                     continue  # Step 9: Skip to next sentence if no items found
                 
                 # Step 6: If we have all three (category, sentiment, and item), format and return result
+                if sentiment == "favourite":
+                    return f"{user_id}'s favourite {category} is {items[0]}."
                 if category and sentiment != "has mentioned" and items:
                     return f"{user_id} {sentiment} {items[0]}"
 

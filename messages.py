@@ -332,7 +332,7 @@ class SentimentStrength(Enum):
 class SentimentAnalyzer:
     def __init__(self):
         # Define basic sentiment words
-        self.favourite_words = r'(favorite|favourite)'
+        self.favourite_words = r'(favorite|favourite|fave|fav)'
         self.positive_words = r'(like|likes|liking|enjoy|enjoys|enjoying)'
         self.strong_positive_words = r'(love|loves|loving|adore|adores|adoring|favorite|favourite)'
         self.negative_words = r'(dislike|dislikes|disliking)'
@@ -343,6 +343,9 @@ class SentimentAnalyzer:
         
         # Patterns that check for negation before sentiment words
         self.sentiment_patterns = {
+            SentimentStrength.FAVOURITE: [
+                r'\b(?:' + self.favourite_words + r')\b'
+            ],
             SentimentStrength.STRONG_POSITIVE: [
                 r'\breally\s+(?:' + self.strong_positive_words + r')\b',
                 r'\b(?:' + self.strong_positive_words + r')\b',
@@ -395,7 +398,9 @@ class SentimentAnalyzer:
         }
 
     async def strength_to_word(self, strength: SentimentStrength) -> str:
-        if strength == SentimentStrength.STRONG_POSITIVE:
+        if strength == SentimentStrength.FAVOURITE:
+            return 'favourite'
+        elif strength == SentimentStrength.STRONG_POSITIVE:
             return 'loves'
         elif strength == SentimentStrength.POSITIVE:
             return 'likes'
