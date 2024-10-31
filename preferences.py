@@ -1,8 +1,11 @@
-import re
+'''
+Module for handling user preferences.
+'''
 from typing import List, Optional
 from messages import SentimentAnalyzer, TextFormatting
 
 class PreferenceClassifier:
+    """Class for handling zero-shot classification of user preferences."""
     def __init__(self, models):
         self.models = models
         self.categories = [
@@ -11,11 +14,11 @@ class PreferenceClassifier:
             "coding", "live2d_rigging", "drawing"
         ]
 
-        # Initialize the zero-shot classification pipeline
+        # Initialize the pipeline
         self.classifier = self.models.get_classifier()
 
     async def classify_sentence(self, sentence: str) -> Optional[str]:
-        """Classify a single sentence and return the category (if any)."""
+        """Classify a single sentence and return the category(ies) if any."""
         try:
             result = self.classifier(
                 sentence,
@@ -23,18 +26,15 @@ class PreferenceClassifier:
                 hypothesis_template="This text is about {}."
             )
             
-            # Get the category with the highest confidence score
-            category = result["labels"][0]
-            confidence = result["scores"][0]
+            # Get all categories with confidence > 0.5
+            categories = [label for label, score in zip(result["labels"], result["scores"]) if score > 0.5]
             
-            if confidence > 0.5:
-                return category
-            else:
-                return None
+            return categories
         except:
-            return None
-
+            return []
+        
 class ItemExtractor:
+    """Class for handling calling OpenAI functions for each category."""
     def __init__(self, models):
         self.models = models
 
@@ -80,28 +80,34 @@ class PreferenceProcessor:
             self.sentiment_analyzer = SentimentAnalyzer()
             self.item_extractor = ItemExtractor(models)
 
-        async def process_text(self, chat_history: List[dict], user_id: str) -> str:
+        async def process_text(self, chat_history: List[dict], user_id: str) -> List[str]:
+            """Returns a list of suggested user preferences from the chat history."""
             if not chat_history:
-                return f"{user_id} has mentioned something"
+                return [f"{user_id} has mentioned something"]
         
             most_recent_msg = chat_history[-1]
             sentence = f"{most_recent_msg['role']}: {most_recent_msg['content']}"
         
-            category = await self.classifier.classify_sentence(sentence)
+            categories = await self.classifier.classify_sentence(sentence)
             sentiment_result = await self.sentiment_analyzer.get_sentiment(sentence)
             sentiment = sentiment_result['word']
         
-            def process_category(items, category_name):
-                if items:
-                    values = [item['value'] for item in items]
-                    actions = [item['action'] for item in items if item['action']]
-                    if sentiment == "favourite":
-                        return f"{user_id}'s favourite {category_name}s are {self.format_list(values)}."
-                    if actions and all(action == actions[0] for action in actions):
-                        return f"{user_id} {sentiment} {actions[0]} {self.format_list(values)}."
-                    return f"{user_id} {sentiment} {self.format_list(values)}."
-                return None
+            results = []
         
+            for category in categories:
+                result = await self.process_category(category, sentence, user_id, sentiment)
+                if result:
+                    results.append(result)
+        
+            if not results:
+                if sentiment == "favourite":
+                    results.append(f"{user_id}'s favourite thing is something.")
+                else:
+                    results.append(f"{user_id} {sentiment} something.")
+        
+            return results
+        
+        async def process_category(self, category, sentence, user_id, sentiment):
             category_mapping = {
                 "music": ("extract_music", "music item"),
                 "food": ("extract_food_items", "food"),
@@ -119,11 +125,19 @@ class PreferenceProcessor:
             if category in category_mapping:
                 extractor_method, category_name = category_mapping[category]
                 items = await getattr(self.item_extractor, extractor_method)(sentence)
-                return process_category(items, category_name) or f"{user_id} {sentiment} something about {category_name}s."
+                return self.format_category_result(items, category_name, user_id, sentiment)
+            return None
         
-            if sentiment == "favourite":
-                return f"{user_id}'s favourite {category or 'thing'} is {'something'}."
-            return f"{user_id} {sentiment} {category or 'something'}."
+        def format_category_result(self, items, category_name, user_id, sentiment):
+            if items:
+                values = [item['value'] for item in items]
+                actions = [item['action'] for item in items if item['action']]
+                if sentiment == "favourite":
+                    return f"{user_id}'s favourite {category_name}s are {self.format_list(values)}."
+                if actions and all(action == actions[0] for action in actions):
+                    return f"{user_id} {sentiment} {actions[0]} {self.format_list(values)}."
+                return f"{user_id} {sentiment} {self.format_list(values)}."
+            return None
         
         async def get_sentiment_word(self, text: str) -> Optional[str]:
             """Simple sentiment analysis for preference statements"""

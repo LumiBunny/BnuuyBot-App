@@ -35,7 +35,7 @@ class NodeRegistry:
         self.chat = Completions(chat_history, models, self.chat_log, self.post)
         self.text = TextFormatting(chat_history, models)
         self.node_manager = NodeManager(self)  # Add Node Modules
-        self.preference_processor = PreferenceProcessor(models)
+        self.preference = PreferenceProcessor(models)
         
         # Initialize nodes
         self.setup_nodes()
@@ -53,7 +53,7 @@ class NodeRegistry:
     async def starting_node_handler(self, transcription):
             print("You: ", transcription)
             self.chat_history.add("user", self.user_id, transcription)
-            test_preferences = await self.preference_processor.process_text(self.chat_history, self.user_id)
+            test_preferences = await self.preference.process_text(self.chat_history, self.user_id)
             print("preferences process_text returns: ", test_preferences)
             intent = self.models.get_intent(transcription)
             # print("intent", intent) # DEBUGGING, will make a module for voice commands
@@ -107,7 +107,7 @@ class NodeRegistry:
 
     async def verify_remember_this(self, transcription):
         # Process the recent messages using the PreferenceProcessor
-        self.remember = await self.preference_processor.process_text(self.chat_history, self.user_id)
+        self.remember = await self.preference.process_text(self.chat_history, self.user_id)
         self.chat_history.add("user", "user", f"Ask {self.user_id} if they want you to remember this: {self.remember}. You MUST tell them what it is they asked you to remember. You will also ask the user to if they want it remembered or not. You should address the user casually when you ask.")
         reply = await self.chat.bnuuybot_completion()
         if reply is not None:
