@@ -19,7 +19,7 @@ app = Flask(__name__)
 
 def run_flask_app():
     app.run(debug=True, use_reloader=False)  # Set use_reloader=False to avoid running it twice
-
+    
 async def main():
     # Initialize components
     models = LLMModels()
