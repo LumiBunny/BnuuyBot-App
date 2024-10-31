@@ -37,6 +37,8 @@ class STT:
 
     def handle_transcription(self, text):
         if text:
+            self.audio_timer.cancel_timer()
+            print("Audio detected! Cancelling timer!")
             with self.lock:
                 self.transcription.append(text)
                 self.last_transcription = text
