@@ -4,6 +4,7 @@ Description: A class that handles the Azure TTS API call function and parameters
 
 import azure.cognitiveservices.speech as speechsdk
 import os
+import time
 import threading
 
 class Azure_AI():
@@ -58,23 +59,32 @@ class Azure_AI():
                                         print("Did you set the speech resource key and region values?")
 
         def start_continuous_listening(self, callback):
-                def recognize_cb(evt):
-                    if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                        callback(evt.result.text)
+            def recognize_cb(evt):
+                if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                    callback(evt.result.text)
+                elif evt.result.reason == speechsdk.ResultReason.NoMatch:
+                    print(f"No speech could be recognized: {evt.result.no_match_details}")
 
-                self.speech_recognizer.recognized.connect(recognize_cb)
-                self.speech_recognizer.session_started.connect(lambda evt: print('Azure STT: Session started'))
-                self.speech_recognizer.session_stopped.connect(lambda evt: print('Azure STT: Session stopped'))
+            self.speech_recognizer.recognized.connect(recognize_cb)
+            self.speech_recognizer.session_started.connect(lambda evt: print('Azure STT: Session started'))
+            self.speech_recognizer.session_stopped.connect(lambda evt: print('Azure STT: Session stopped'))
+            self.speech_recognizer.canceled.connect(lambda evt: print(f'Azure STT: Canceled. Reason: {evt.reason}'))
 
-                self.is_listening = True
-                self.listen_thread = threading.Thread(target=self._continuous_listen)
-                self.listen_thread.start()
+            self.is_listening = True
+            self.listen_thread = threading.Thread(target=self._continuous_listen)
+            self.listen_thread.start()
 
         def _continuous_listen(self):
-                self.speech_recognizer.start_continuous_recognition()
-                while self.is_listening:
-                    threading.Event().wait(1)  # Wait for 1 second
-                self.speech_recognizer.stop_continuous_recognition()
+            while self.is_listening:
+                try:
+                    self.speech_recognizer.start_continuous_recognition()
+                    while self.is_listening:
+                        threading.Event().wait(1)
+                except Exception as e:
+                    print(f"Connection lost: {e}. Reconnecting...")
+                    time.sleep(5)  # Wait before reconnecting
+                finally:
+                    self.speech_recognizer.stop_continuous_recognition()
 
         def stop_continuous_listening(self):
                 self.is_listening = False
