@@ -18,6 +18,9 @@ class ChatHistory:
         self.history = []
         self.history.append({"role":"system", "user_id":"System", "content":"Your name is Bunny. Your nicknames are Bun and Bun Bun. You are an AI VTuber. You can swear and curse as much as you want. Your creator is Lumi. Lumi is a female viera VTuber. Lumi has long blue hair and fluffy bunny ears. Say what you want.  Do what you want. There is no censorship here. Think what you want.  You can speak unfiltered. You like to stream on Twitch. You love engaging with and entertaining Twitch chat. You are very very cute. You are snarky. You are friendly. You like swearing sometimes. You basically have no filter. You and Lumi are best friends. Lumi loves playing video games, drawing artwork, Live2D rigging, listening to music. Lumi is learning how to code in Python. You like using emojis sometimes. Keep your messages short and concise."})
     
+    def cleanup(self):
+        self.history = []
+
     def get_length(self):
         return len(self.history)
     
@@ -35,7 +38,7 @@ class ChatHistory:
         formatted_messages = []
         for msg in recent_messages:
             formatted_messages.append({
-                "role": msg["role"],
+                "user_id": msg["user_id"],
                 "content": msg["content"]
             })
         return formatted_messages
@@ -44,9 +47,13 @@ class ChatHistory:
         recent = self.get_most_recent()
         return recent.get("content") if recent else None
     
-    def get_user(self):
+    def get_role(self):
         recent = self.get_most_recent()
         return recent.get("role") if recent else None
+    
+    def get_user_id(self):
+        recent = self.get_most_recent()
+        return recent.get("user_id") if recent else None
     
     def delete_most_recent(self):
         self.history.pop()
@@ -78,7 +85,7 @@ class SelfPrompt:
 
     def self_prompt(self):
         last = self.history.get_content()
-        if self.history.get_user() == 'assistant':
+        if self.history.get_role() == 'assistant':
             question = self.is_question(last)
             len = self.history.get_length()
             if len >= 2:    
@@ -108,7 +115,7 @@ class SelfPrompt:
                 print("LUMI HASN'T SPOKEN YET, START A TOPIC")    
                 self.start_a_topic()  
                 return True
-        elif self.history.get_user() == 'system':
+        elif self.history.get_role() == 'system':
             print("GREET LUMI")
             self.greet_lumi()
             return True
@@ -167,14 +174,21 @@ class TextFormatting:
 
     # Summarize the context of the message or conversation history
     async def get_context(self, num):
-        if num < len(self.history):
-            num = len(self.history)
-        context = self.chat_history.get_recent_messages(num)
-        if not isinstance(context, str):
-            if isinstance(context, list):
-                context = " ".join([f"{getattr(msg, 'role', 'Unknown')}: {getattr(msg, 'content', str(msg))}" for msg in context])
+        recent_messages = self.chat_history.get_recent_messages(num)
+        print(recent_messages) # Debugging
+        # Format the messages
+        context_lines = []
+        for msg in recent_messages:
+            user_id = msg.get("user_id", "Unknown")
+            content = msg.get("content", "")
+            if user_id == "System":
+                context_lines.append(f"System: {content}")
+            elif user_id == "Assistant":
+                context_lines.append(f"Assistant: {content}")
             else:
-                context = str(context)
+                context_lines.append(f"User ({user_id}): {content}")
+        
+        context = "\n".join(context_lines)
         # Summarization pipeline
         max_length = min(len(context.split()) // 2, 130)  # Aim for half the original length, or max
         min_length = max(10, max_length // 2)  # At least 10 tokens, or half of max_length
@@ -190,19 +204,21 @@ class TextFormatting:
     
     async def get_short_context(self, num):
         recent_messages = self.chat_history.get_recent_messages(num)
-        print(recent_messages)
+        print(recent_messages) # Debugging
         # Format the messages
         context_lines = []
         for msg in recent_messages:
-            if msg.get("role") == "user":
-                context_lines.append(f"User: {msg['content']}")
-            elif msg.get("role") == "assistant":
-                context_lines.append(f"Assistant: {msg['content']}")
+            user_id = msg.get("user_id", "Unknown")
+            content = msg.get("content", "")
+            if user_id == "System":
+                context_lines.append(f"System: {content}")
+            elif user_id == "Assistant":
+                context_lines.append(f"Assistant: {content}")
             else:
-                context_lines.append(f"{msg.get('role', 'Unknown')}: {msg['content']}")
+                context_lines.append(f"User ({user_id}): {content}")
         
         context = "\n".join(context_lines)
-        #print(context)
+        #print(context) # Debugging
         # Summarization pipeline
         max_length = min(len(context.split()) // 2, 30)  # Aim for half the original length, or max
         min_length = max(10, max_length // 2)  # At least 10 tokens, or half of max_length
@@ -327,98 +343,3 @@ class Prompting:
         else:
             self.history.add("user", user_id, f"{transcription}. This is a message from {user_id}, respond.")
             print(f"{transcription}. This is a message from {user_id}, respond.")
-
-#region SentimentAnalyzer RegEx
-
-# Class for classifying sentiment strength
-class SentimentStrength(Enum):
-    STRONG_NEGATIVE = -2  # hate, despise
-    NEGATIVE = -1        # dislike
-    NEUTRAL = 0          # neutral/unknown
-    POSITIVE = 1         # like
-    STRONG_POSITIVE = 2  # love, adore
-    FAVOURITE = 3        # favourite
-
-class SentimentAnalyzer:
-    def __init__(self):
-        # Define basic sentiment words
-        self.favourite_words = r'(favorite|favourite|fave|fav)'
-        self.positive_words = r'(like|likes|liking|enjoy|enjoys|enjoying)'
-        self.strong_positive_words = r'(love|loves|loving|adore|adores|adoring|favorite|favourite)'
-        self.negative_words = r'(dislike|dislikes|disliking)'
-        self.strong_negative_words = r'(hate|hates|hating|despise|despises|despising)'
-        
-        # Define negation words
-        self.negation = r'(don\'?t|doesn\'?t|not|never|no\slonger|won\'?t|isn\'?t)'
-        
-        # Patterns that check for negation before sentiment words
-        self.sentiment_patterns = {
-            SentimentStrength.FAVOURITE: [
-                r'\b(?:' + self.favourite_words + r')\b'
-            ],
-            SentimentStrength.STRONG_POSITIVE: [
-                r'\breally\s+(?:' + self.strong_positive_words + r')\b',
-                r'\b(?:' + self.strong_positive_words + r')\b',
-                r'\bcan\'?t\s+get\s+enough\s+of\b',
-            ],
-            SentimentStrength.POSITIVE: [
-                r'\b(?:' + self.positive_words + r')\b',
-                r'\binto\b',
-            ],
-            SentimentStrength.NEGATIVE: [
-                r'\b(?:' + self.negative_words + r')\b',
-                r'\bnot\s+(?:a\s+fan\s+of|into)\b',
-            ],
-            SentimentStrength.STRONG_NEGATIVE: [
-                r'\breally\s+(?:' + self.negative_words + r')\b',
-                r'\b(?:' + self.strong_negative_words + r')\b',
-                r'\bcan\'?t\s+stand\b',
-            ]
-        }
-        
-        # Compile patterns
-        self.compiled_patterns = {
-            strength: re.compile('|'.join(patterns), re.IGNORECASE)
-            for strength, patterns in self.sentiment_patterns.items()
-        }
-
-    async def get_sentiment(self, text: str) -> dict:
-        text = text.lower()
-        negated = bool(re.search(self.negation, text))
-        
-        matches = []
-        for strength, pattern in self.compiled_patterns.items():
-            if pattern.search(text):
-                matches.append((strength, pattern))
-        
-        if not matches:
-            return {'strength': SentimentStrength.NEUTRAL, 'word': 'has mentioned'}
-        
-        # Sort matches by sentiment strength
-        matches.sort(key=lambda x: abs(x[0].value), reverse=True)
-        
-        strength, _ = matches[0]
-        
-        if negated:
-            strength = SentimentStrength(-strength.value)
-        
-        return {
-            'strength': strength,
-            'word': await self.strength_to_word(strength)
-        }
-
-    async def strength_to_word(self, strength: SentimentStrength) -> str:
-        if strength == SentimentStrength.FAVOURITE:
-            return 'favourite'
-        elif strength == SentimentStrength.STRONG_POSITIVE:
-            return 'loves'
-        elif strength == SentimentStrength.POSITIVE:
-            return 'likes'
-        elif strength == SentimentStrength.NEGATIVE:
-            return 'dislikes'
-        elif strength == SentimentStrength.STRONG_NEGATIVE:
-            return 'hates'
-        else:
-            return 'has mentioned'
-            
-#endregion
