@@ -4,7 +4,17 @@ Speech to speech app developed in Python for conversations with an LLM.
 ## Introduction ✨
 BunnyBot was a way for me to get back into learning coding again by learning something new using Python. The app became a way for me to practice all kinds of things like using modules, making classes, OOP, the general piecing together of LLMs and their functions, plus much more.
 
-I actually have no idea what I am doing most of the time, but that is part of the fun of a learning project.
+⚠️ *This is still a work in progress!* ⚠️
+*I am still figuring things out and learning as I go. This project is still a baby and is in development. The project is a little messy, some features might be unstable, and lots of changes will happen and I learn and grow. I am looking forward to seeing how far I can go with this.*
+
+### Version 0.7.4 (?) Notes 📝 (November 05, 2024)
+Laid down groundwork for new modules!
++ Added new modules for topic classification and category mapping.
++ Added new module for user preferences, including being able to process multiple preferences in the same sentence.
++ Added new functions for OpenAI API calls.
++ Minor patches to AzureAI STT code.
++ Reworked some functions in messages.py module.
++ Moved audio timer for improved use of it.
 
 ### Version 0.5.4 Notes 📝 (October 25, 2024)
 Added new modules for conversation nodes!
