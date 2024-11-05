@@ -160,3 +160,5 @@ nodes.md
 .testing_stuff.py
 .testing_stuff_2.py
 .logs
+pytest.ini
+tests
