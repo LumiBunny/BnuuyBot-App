@@ -1,81 +1,68 @@
 import asyncio
 import pyaudio
-from deepgram import (
-    DeepgramClient,
-    DeepgramClientOptions,
-    LiveTranscriptionEvents,
-    LiveOptions,
-)
+import threading
+import os
+from deepgram import DeepgramClient, LiveTranscriptionEvents, LiveOptions
 
-# Replace URL with PyAudio setup
-CHUNK = 1024
-FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 16000
+class Deepgram_STT:
+    def __init__(self):
+        self.deepgram = DeepgramClient(os.environ.get('DEEPGRAM_KEY'))
+        self.is_listening = False
+        self.listen_thread = None
+        
+        # PyAudio setup
+        self.CHUNK = 1024
+        self.FORMAT = pyaudio.paInt16
+        self.CHANNELS = 1
+        self.RATE = 16000
 
-def main():
-    try:
-        # use default config
-        deepgram: DeepgramClient = DeepgramClient(api_key="36ec06c5ff54ead1d67747c0381837267eba95fe")
+    def start_continuous_listening(self, callback):
+        self.is_listening = True
+        self.listen_thread = threading.Thread(target=self._continuous_listen, args=(callback,))
+        self.listen_thread.start()
 
-        # Create a websocket connection to Deepgram
-        dg_connection = deepgram.listen.websocket.v("1")
+    def _continuous_listen(self, callback):
+        asyncio.run(self._async_continuous_listen(callback))
 
-        def on_message(self, result, **kwargs):
-            sentence = result.channel.alternatives[0].transcript
-            if len(sentence) == 0:
-                return
-            print(f"You: {sentence}")
+    async def _async_continuous_listen(self, callback):
+        dg_connection = self.deepgram.listen.websocket.v("1")
+
+        async def on_message(result):
+            if result.is_final:
+                sentence = result.channel.alternatives[0].transcript
+                if sentence:
+                    callback(sentence)
 
         dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
 
-        # connect to websocket
         options = LiveOptions(
             model="nova-2",
             language="en-US",
             encoding="linear16",
-            sample_rate=RATE,
-            profanity_filter=False,
+            sample_rate=self.RATE,
             punctuate=True,
-            smart_format=True,
-            diarize=True,
-            filler_words=True,
-            # Time in milliseconds of silence to wait for before finalizing speech
             endpointing=300
-            )
+        )
 
-        print("\n\nPress Ctrl+C to stop recording...\n\n")
-        
-        if not dg_connection.start(options):
-            print("Failed to start connection")
-            return
+        await dg_connection.start(options)
 
         p = pyaudio.PyAudio()
-        stream = p.open(format=FORMAT,
-                        channels=CHANNELS,
-                        rate=RATE,
+        stream = p.open(format=self.FORMAT,
+                        channels=self.CHANNELS,
+                        rate=self.RATE,
                         input=True,
-                        frames_per_buffer=CHUNK)
+                        frames_per_buffer=self.CHUNK)
 
-        print("Listening...")
+        while self.is_listening:
+            data = stream.read(self.CHUNK)
+            await dg_connection.send(data)
 
-        try:
-            while True:
-                data = stream.read(CHUNK)
-                dg_connection.send(data)
-        except KeyboardInterrupt:
-            print("Stopping...")
-        finally:
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
-            dg_connection.finish()
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+        await dg_connection.finish()
 
-        print("Finished")
-
-    except Exception as e:
-        print(f"Could not open socket: {e}")
-        return
-
-if __name__ == "__main__":
-    main()
+    def stop_continuous_listening(self):
+        self.is_listening = False
+        if self.listen_thread:
+            self.listen_thread.join()
