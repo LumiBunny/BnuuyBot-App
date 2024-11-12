@@ -1,7 +1,7 @@
 import asyncio
-from messages import TextFormatting, Prompting, PostChat, ChatLog, SentimentAnalyzer
+from messages import TextFormatting, Prompting, PostChat, ChatLog
 from chat_completions import Completions
-from preferences import PreferenceProcessor
+from preferences import UserPreferences
 from node_manager import NodeManager
 from memory import Memory
 
@@ -27,7 +27,6 @@ class NodeRegistry:
         self.chat_history = chat_history
         self.user_id = user_id
         self.remember = ""
-        self.analyzer = SentimentAnalyzer()
         self.prompt = Prompting(chat_history)
         self.chat_log = ChatLog()
         self.post = PostChat(message_queue)
@@ -35,7 +34,7 @@ class NodeRegistry:
         self.chat = Completions(chat_history, models, self.chat_log, self.post)
         self.text = TextFormatting(chat_history, models)
         self.node_manager = NodeManager(self)  # Add Node Modules
-        self.preference = PreferenceProcessor(models)
+        self.preference = UserPreferences(models, chat_history)
         
         # Initialize nodes
         self.setup_nodes()
