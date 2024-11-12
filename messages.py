@@ -38,6 +38,7 @@ class ChatHistory:
         formatted_messages = []
         for msg in recent_messages:
             formatted_messages.append({
+                "role": msg["role"],
                 "user_id": msg["user_id"],
                 "content": msg["content"]
             })
