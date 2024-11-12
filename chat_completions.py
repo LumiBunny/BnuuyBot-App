@@ -21,6 +21,7 @@ class Completions:
         while not completed_generation:
             try:
                 messages = self.chat_history.get_recent_messages(20)  # Adjust the number as needed
+                print(messages) # Debugging
                 user_input = self.chat_history.get_content()
 
                 completion = self.client.chat.completions.create(
