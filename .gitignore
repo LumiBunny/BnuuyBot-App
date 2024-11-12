@@ -161,3 +161,4 @@ nodes.md
 .testing_stuff_2.py
 .logs
 nodes.md
+tests/sentiments.py
