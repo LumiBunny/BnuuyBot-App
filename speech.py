@@ -6,6 +6,7 @@ import queue
 import threading
 from audio_timer import AudioTimer
 from azure_ai import Azure_AI
+from stt_api import Deepgram_STT
 
 """
 A class for handling STT and audio transcriptions work queues.
@@ -26,11 +27,11 @@ class STT:
         self.audio_timer = AudioTimer(history=self.history, chat=self.chat, tts=self.tts, timeout=audio_timeout)
 
         # Initialize Azure AI Speech services.
-        self.azure_ai = Azure_AI(self.audio_timer)
+        self.deepgram_ai = Deepgram_STT(self.audio_timer)
 
         print("Ready!\n")
         print("Starting continuous listening...")
-        self.azure_ai.start_continuous_listening(self.handle_transcription)
+        self.deepgram_ai.start_continuous_listening(self.handle_transcription)
 
         # Start the initial timer
         self.audio_timer.start_timer()
@@ -47,7 +48,7 @@ class STT:
         print("Stopping...")
         print(f"Transcription:\n {self.transcription}")
         self.is_listening = False
-        self.azure_ai.stop_continuous_listening()
+        self.deepgram_ai.stop_continuous_listening()
         self.audio_timer.cancel_timer()
 
     def get_last_transcription(self):
